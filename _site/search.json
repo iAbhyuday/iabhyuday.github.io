@@ -4,7 +4,7 @@
     "href": "index.html",
     "title": "Blog",
     "section": "",
-    "text": "Post With Code\n\n\n\n\n\n\nnews\n\n\ncode\n\n\nanalysis\n\n\n\n\n\n\n\n\n\nOct 26, 2024\n\n\nHarlow Malloc\n\n\n\n\n\n\n\n\n\n\n\n\nWelcome To My Blog\n\n\n\n\n\n\nnews\n\n\n\n\n\n\n\n\n\nOct 23, 2024\n\n\nTristan O’Malley\n\n\n\n\n\n\nNo matching items"
+    "text": "Differentiable Sampling from Discrete Distributions\n\n\n\n\n\n\n[code]\n\n\n\n\n\n\n\n\n\nDec 23, 2024\n\n\nAbhyuday\n\n\n\n\n\n\n\n\n\n\n\n\nPost With Code\n\n\n\n\n\n\nnews\n\n\ncode\n\n\nanalysis\n\n\n\n\n\n\n\n\n\nOct 26, 2024\n\n\nHarlow Malloc\n\n\n\n\n\n\n\n\n\n\n\n\nWelcome To My Blog\n\n\n\n\n\n\nnews\n\n\n\n\n\n\n\n\n\nOct 23, 2024\n\n\nTristan O’Malley\n\n\n\n\n\n\nNo matching items"
   },
   {
     "objectID": "posts/post-with-code/index.html",
@@ -26,5 +26,12 @@
     "title": "Welcome To My Blog",
     "section": "",
     "text": "This is the first post in a Quarto blog. Welcome!\n\nSince this post doesn’t specify an explicit image, the first image in the post will be used in the listing page of posts."
+  },
+  {
+    "objectID": "posts/differentiable-sampling/index.html",
+    "href": "posts/differentiable-sampling/index.html",
+    "title": "Differentiable Sampling from Discrete Distributions",
+    "section": "",
+    "text": "What is Discrete Sampling\nDiscrete sampling refers to the process of selecting value of a random variable over a given discrete probability distribution p.\n\\[\np = [p_1, p_2, ..., p_n] \\quad where \\quad \\sum_{i=1}^n p_i = 1\n\\]\nFor example, \\(p = [0.6, 0.3, 0.1]\\) is a categorical distribution over three classes,\n\nWe can select first class with probability: \\(P(X=1) = 0.6\\) i.e. 60%\nWe can select second class with probability: \\(P(X=2) = 0.3\\) i.e. 30%\nWe can select third class with probability: \\(P(X=3) = 0.1\\) i.e. 10%\n\nIn practice, Sampling process is usually performed using:\n\nargmax selecting the value with highest probability. e.g. inference on a multi-class classifier.\nnp.random.choice selecting a random item with corresponding probability. e.g. a RL agent exploring the discrete action space.\n\n\n\nProblem with Discrete Sampling\nSampling methods mentioned in the previous section provide options for both exploration (during data collection) and exploitation (during inference) of the distribution space.\nBut, what if sampling is required during training phase e.g sampling vectors from a codebook while training a VQVAE or in tasks like reinforcement learning or generative modeling, sampling is necessary to explore different actions or outputs.\nWell, the training stage requires all the intermediary operations to be differentiable, for the mighty Backpropagation. Let’s analyze the differentiability of sampling options available to us:\n\nargmax being a discontinuous function everywhere, i.e. \\(\\quad\\lim_{h\\to0}f(x+h) \\neq \\lim_{h\\to0}f(x+h) \\neq f(x)\\) is clearly not differentiable.\nrandom selection methods like np.random.choice are also non-differentiable."
   }
 ]

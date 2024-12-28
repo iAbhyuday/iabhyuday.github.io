@@ -10,5 +10,8 @@
   },
   "posts/welcome/index.qmd": {
     "index.html": "988adc31"
+  },
+  "posts/differentiable-sampling/index.qmd": {
+    "index.html": "fbcb2e19"
   }
 }
