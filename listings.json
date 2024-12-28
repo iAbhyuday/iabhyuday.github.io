@@ -2,8 +2,8 @@
   {
     "listing": "/index.html",
     "items": [
+      "/posts/differentiable-sampling/index.html",
       "/posts/post-with-code/index.html",
-      "/posts/differentiable-sampling-from -discrete-distribution/index.html",
       "/posts/welcome/index.html"
     ]
   }
