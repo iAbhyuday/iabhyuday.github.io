@@ -2,7 +2,7 @@
 title: "Differentiable Sampling from Discrete Distributions"
 date: "2024-12-23"
 author: "Abhyuday"
-categories: \[code\]
+categories: [code]
 ---
 
 # What is Discrete Sampling
