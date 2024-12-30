@@ -7,9 +7,13 @@ execute:
 categories: [code]
 ---
 
+Discrete sampling plays a crucial role in many machine learning tasks, such as classification, reinforcement learning, and generative modeling. Whether you're predicting the next action for a reinforcement learning agent or selecting vectors from a codebook in a VQ-VAE, the process often involves choosing one value from a predefined set of categories based on a probability distribution.
+
+However, during training, this sampling process encounters a major roadblock: the lack of differentiability. This makes backpropagation—essential for optimizing neural networks—impossible. Enter **Gumbel-Softmax**, a technique that enables differentiable sampling while retaining the key properties of discrete sampling. In this blog post, we’ll explore the problem, dissect the Gumbel-Softmax trick, and understand how it solves this challenge.
+
 # What is Discrete Sampling
 
-Discrete sampling refers to the process of selecting value of a random variable over a given discrete probability distribution *p*.
+Discrete sampling refers to selecting the value of a random variable from a given discrete probability distribution $p$, defined as:
 
 $$
 p = [p_1, p_2, ..., p_n] \quad where \quad \sum_{i=1}^n p_i = 1
@@ -28,6 +32,8 @@ In practice, Sampling process is usually performed using:
 1.  `argmax` selecting the value with highest probability. e.g. inference on a multi-class classifier.
 
 2.  `np.random.choice` selecting a random item with corresponding probability. e.g. a RL agent exploring the discrete action space.
+
+    ------------------------------------------------------------------------
 
 # Problem with Discrete Sampling
 
@@ -88,10 +94,16 @@ Gumbel noise emerges as the perfect candidate for this because of following prop
 
 -   It introduces randomness in a way that respects the structure of categorical distributions while enabling gradient-based optimization.
 
-Gumble noise $\epsilon$ is sampled from standard [***Gumbel distribution***](https://en.wikipedia.org/wiki/Gumbel_distribution). We can draw such noise samples by first computing $u \sim Uniform(0, 1)$ and then computing $\epsilon = -\log(-\log(u))$ .
+Gumble noise $\epsilon$ is sampled from the standard [***Gumbel distribution***](https://en.wikipedia.org/wiki/Gumbel_distribution). We can draw such noise samples by first computing $u \sim Uniform(0, 1)$ and then computing $\epsilon = -\log(-\log(u))$ .
 
 Now putting it all together we have the Gumble Softmax Equation as:
 
 $$
 GumbelSoftmax(z_i, \tau) =  \frac{e^{(z_i + \epsilon)/\tau}}{\sum_{j=1}^{n} e^{(z_j + \epsilon)/\tau}} 
 $$
+
+-   **Stochasticity**: $\epsilon$ injects randomness, enabling exploration.
+
+-   **Differentiability**: The softmax function ensures the operation is differentiable.
+
+-   **Control**: $\tau$ adjusts the trade-off between exploration and exploitation.
