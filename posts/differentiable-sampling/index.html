@@ -308,7 +308,7 @@ p = [p_1, p_2, ..., p_n] \quad where \quad \sum_{i=1}^n p_i = 1
 </section>
 <section id="gumbel-noise" class="level3">
 <h3 class="anchored" data-anchor-id="gumbel-noise">Gumbel Noise</h3>
-<p>Stochasticity is needed to encourage exploration and mimic random sampling from given categorical distribution. We can inject this stochasticity perturbing the logits by adding a noise <span class="math inline">\(\epsilon\)</span> value before applying softmax.</p>
+<p>Stochasticity is needed to encourage exploration and mimic random sampling from given categorical distribution. We can inject this stochasticity through perturbing the logits by adding a noise <span class="math inline">\(\epsilon\)</span> value before applying softmax.</p>
 <p>Gumbel noise emerges as the perfect candidate for this because of following properties:</p>
 <ul>
 <li><p>It is mathematically aligned with categorical distributions and enables differentiable approximation of discrete sampling via the Gumbel-Softmax trick.</p></li>
