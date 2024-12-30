@@ -7,11 +7,13 @@ execute:
 categories: [code]
 ---
 
+------------------------------------------------------------------------
+
 Discrete sampling plays a crucial role in many machine learning tasks, such as classification, reinforcement learning, and generative modeling. Whether you're predicting the next action for a reinforcement learning agent or selecting vectors from a codebook in a VQ-VAE, the process often involves choosing one value from a predefined set of categories based on a probability distribution.
 
 However, during training, this sampling process encounters a major roadblock: the lack of differentiability. This makes backpropagation—essential for optimizing neural networks—impossible. Enter **Gumbel-Softmax**, a technique that enables differentiable sampling while retaining the key properties of discrete sampling. In this blog post, we’ll explore the problem, dissect the Gumbel-Softmax trick, and understand how it solves this challenge.
 
-# What is Discrete Sampling
+## What is Discrete Sampling
 
 Discrete sampling refers to selecting the value of a random variable from a given discrete probability distribution $p$, defined as:
 
@@ -33,9 +35,7 @@ In practice, Sampling process is usually performed using:
 
 2.  `np.random.choice` selecting a random item with corresponding probability. e.g. a RL agent exploring the discrete action space.
 
-    ------------------------------------------------------------------------
-
-# Problem with Discrete Sampling
+## Problem with Discrete Sampling
 
 Sampling methods mentioned in the previous section provide options for both exploration (during data collection) and exploitation (during inference) of the distribution space.
 
@@ -48,7 +48,7 @@ Well, the training stage requires all the intermediary operations to be differen
 
 Now that we have a clear picture of the problem, lets build up to the Gumbel Softmax and find out how it overcomes the impediment of non-differentiability.
 
-# Gumbel Softmax
+## Gumbel Softmax
 
 As mentioned in the previous section, we need a differentiable solution for argmax-styled determinism and stochastic nature of random selection to maintain the exploration & exploitation.
 
