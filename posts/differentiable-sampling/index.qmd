@@ -48,7 +48,7 @@ As mentioned in the previous section, we need a differentiable solution for argm
 
 We'll now discuss the proposed two-fold solution:
 
-### Sotfmax with temperature
+### Softmax with temperature
 
 The *softmax with temperature* modifies the output probabilities of a categorical distribution by scaling the logits $z$ with a temperature parameter $\tau$:
 
