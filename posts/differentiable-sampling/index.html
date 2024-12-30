@@ -252,8 +252,8 @@ p = [p_1, p_2, ..., p_n] \quad where \quad \sum_{i=1}^n p_i = 1
 <h1>Gumble Softmax</h1>
 <p>As mentioned in the previous section, we need a differentiable solution for argmax-styled determinism and stochastic nature of random selection to maintain the exploration &amp; exploitation.</p>
 <p>We’ll now discuss the proposed two-fold solution:</p>
-<section id="sotfmax-with-temperature" class="level3">
-<h3 class="anchored" data-anchor-id="sotfmax-with-temperature">Sotfmax with temperature</h3>
+<section id="softmax-with-temperature" class="level3">
+<h3 class="anchored" data-anchor-id="softmax-with-temperature">Softmax with temperature</h3>
 <p>The <em>softmax with temperature</em> modifies the output probabilities of a categorical distribution by scaling the logits <span class="math inline">\(z\)</span> with a temperature parameter <span class="math inline">\(\tau\)</span>:</p>
 <p><span class="math display">\[
 \text{softmax}(z_i, \tau) = \frac{e^{z_i/\tau}}{\sum_{j=1}^{n} e^{z_j/\tau}}
