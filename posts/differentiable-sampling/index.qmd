@@ -4,12 +4,6 @@ date: "2024-12-23"
 author: "Abhyuday"
 execute:
   echo: false
-  enabled: true
-format: 
-  html:
-    widgets: true
-
-engine: jupyter
 categories: [code]
 ---
 
@@ -50,48 +44,35 @@ Now that we have a clear picture of the problem, lets build up to the Gumble Sof
 
 # Gumble Softmax
 
-Before jumping directly into the mathematical equations and derivations
+As mentioned in the previous section, we need a differentiable solution for argmax-styled determinism and stochastic nature of random selection to maintain the exploration & exploitation.
 
-```{python}
-import numpy as np
-import bqplot as bq
-import ipywidgets as widgets
-from IPython.display import display
+We'll now discuss the proposed two-fold solution:
 
-# Define data
-x = np.linspace(0, 10, 100)
-y = np.sin(x)
+### Sotfmax with temperature
 
-# Create a scale and axes
-x_scale = bq.LinearScale()
-y_scale = bq.LinearScale()
+The *softmax with temperature* modifies the output probabilities of a categorical distribution by scaling the logits $z$ with a temperature parameter $\tau$:
 
-x_axis = bq.Axis(scale=x_scale, label='X-axis')
-y_axis = bq.Axis(scale=y_scale, orientation='vertical', label='Y-axis')
+$$
+\text{softmax}(z_i, \tau) = \frac{e^{z_i/\tau}}{\sum_{j=1}^{n} e^{z_j/\tau}}
+$$
 
-# Create a line chart
-line = bq.Lines(x=x, y=y, scales={'x': x_scale, 'y': y_scale})
+-   ***High Temperature (***$\tau \to \infty$***)***: Makes probabilities more uniform
 
-# Create a figure
-fig = bq.Figure(marks=[line], axes=[x_axis, y_axis], title="Sine Wave with Amplitude Control")
+-   ***Low Temperature (***$\tau \to 0$***)***: Sharpens the probability, approximation of one-hot vector
 
-# Create a slider widget
-slider = widgets.FloatSlider(
-    value=1.0,
-    min=0.1,
-    max=2.0,
-    step=0.1,
-    description='Amplitude:',
-)
 
-# Define the slider's callback
-def update_wave(change):
-    amplitude = slider.value
-    line.y = amplitude * np.sin(x)
+```{ojs}
 
-# Link the slider to the plot
-slider.observe(update_wave, names='value')
-
-# Display the slider and plot
-display(slider, fig)
+function softmax(logits, temp){
+  let sum=0
+  for (let index = 0; index < logits.length; index++) {
+    sum+= Math.exp((logits[index] + 1e-8)/temp)
+  }
+  let probs = logits.map(x=> Math.exp((x + 1e-8)/temp)/sum)
+  return probs
+}
+prob = Array.from({length: 5}, ()=>Math.random()*10)
+viewof gain = Inputs.range([0.1, 50], {value: 20, step: 0.1, label: "Temperature (τ)   "})
+Plot.barY(softmax(prob, gain)
+ ).plot({x: {label: "Categories"}, y: {label: "Probs"}})
 ```
