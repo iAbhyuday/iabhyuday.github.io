@@ -9,7 +9,7 @@
 <meta name="author" content="Abhyuday">
 <meta name="dcterms.date" content="2024-12-23">
 
-<title>Gumble Softmax: Differentiable Sampling from Discrete Distributions – iabhyuday</title>
+<title>Gumbel Softmax: Differentiable Sampling from Discrete Distributions – iabhyuday</title>
 <style>
 code{white-space: pre-wrap;}
 span.smallcaps{font-variant: small-caps;}
@@ -180,7 +180,7 @@ window.Quarto = {
 <header id="title-block-header" class="quarto-title-block default page-columns page-full">
   <div class="quarto-title-banner page-columns page-full">
     <div class="quarto-title column-body">
-      <h1 class="title">Gumble Softmax: Differentiable Sampling from Discrete Distributions</h1>
+      <h1 class="title">Gumbel Softmax: Differentiable Sampling from Discrete Distributions</h1>
                                 <div class="quarto-categories">
                 <div class="quarto-category">code</div>
               </div>
@@ -246,10 +246,10 @@ p = [p_1, p_2, ..., p_n] \quad where \quad \sum_{i=1}^n p_i = 1
 <li><code>argmax</code> being a discontinuous function everywhere, i.e.&nbsp;<span class="math inline">\(\quad\lim_{h\to0}f(x+h) \neq \lim_{h\to0}f(x+h) \neq f(x)\)</span> is clearly not differentiable.</li>
 <li>random selection methods like <code>np.random.choice</code> are also non-differentiable.</li>
 </ol>
-<p>Now that we have a clear picture of the problem, lets build up to the Gumble Softmax and find out how it overcomes the impediment of non-differentiability.</p>
+<p>Now that we have a clear picture of the problem, lets build up to the Gumbel Softmax and find out how it overcomes the impediment of non-differentiability.</p>
 </section>
-<section id="gumble-softmax" class="level1">
-<h1>Gumble Softmax</h1>
+<section id="gumbel-softmax" class="level1">
+<h1>Gumbel Softmax</h1>
 <p>As mentioned in the previous section, we need a differentiable solution for argmax-styled determinism and stochastic nature of random selection to maintain the exploration &amp; exploitation.</p>
 <p>We’ll now discuss the proposed two-fold solution:</p>
 <section id="softmax-with-temperature" class="level3">
@@ -263,18 +263,18 @@ p = [p_1, p_2, ..., p_n] \quad where \quad \sum_{i=1}^n p_i = 1
 <li><p><strong><em>Low Temperature (</em></strong><span class="math inline">\(\tau \to 0\)</span><strong><em>)</em></strong>: Sharpens the probability, approximation of one-hot vector</p></li>
 </ul>
 <div class="cell">
-<div class="sourceCode cell-code hidden" id="cb1" data-startfrom="66" data-source-offset="-1"><pre class="sourceCode js code-with-copy"><code class="sourceCode javascript" style="counter-reset: source-line 65;"><span id="cb1-66"><a href="#cb1-66" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">softmax</span>(logits<span class="op">,</span> temp){</span>
-<span id="cb1-67"><a href="#cb1-67" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> sum<span class="op">=</span><span class="dv">0</span></span>
-<span id="cb1-68"><a href="#cb1-68" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> (<span class="kw">let</span> index <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> index <span class="op">&lt;</span> logits<span class="op">.</span><span class="at">length</span><span class="op">;</span> index<span class="op">++</span>) {</span>
-<span id="cb1-69"><a href="#cb1-69" aria-hidden="true" tabindex="-1"></a>    sum<span class="op">+=</span> <span class="bu">Math</span><span class="op">.</span><span class="fu">exp</span>((logits[index] <span class="op">+</span> <span class="fl">1e-8</span>)<span class="op">/</span>temp)</span>
-<span id="cb1-70"><a href="#cb1-70" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb1-71"><a href="#cb1-71" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> probs <span class="op">=</span> logits<span class="op">.</span><span class="fu">map</span>(x<span class="kw">=&gt;</span> <span class="bu">Math</span><span class="op">.</span><span class="fu">exp</span>((x <span class="op">+</span> <span class="fl">1e-8</span>)<span class="op">/</span>temp)<span class="op">/</span>sum)</span>
-<span id="cb1-72"><a href="#cb1-72" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> probs</span>
-<span id="cb1-73"><a href="#cb1-73" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb1-74"><a href="#cb1-74" aria-hidden="true" tabindex="-1"></a>prob <span class="op">=</span> <span class="bu">Array</span><span class="op">.</span><span class="fu">from</span>({<span class="dt">length</span><span class="op">:</span> <span class="dv">5</span>}<span class="op">,</span> ()<span class="kw">=&gt;</span><span class="bu">Math</span><span class="op">.</span><span class="fu">random</span>()<span class="op">*</span><span class="dv">10</span>)</span>
-<span id="cb1-75"><a href="#cb1-75" aria-hidden="true" tabindex="-1"></a>viewof gain <span class="op">=</span> Inputs<span class="op">.</span><span class="fu">range</span>([<span class="fl">0.1</span><span class="op">,</span> <span class="dv">50</span>]<span class="op">,</span> {<span class="dt">value</span><span class="op">:</span> <span class="dv">20</span><span class="op">,</span> <span class="dt">step</span><span class="op">:</span> <span class="fl">0.1</span><span class="op">,</span> <span class="dt">label</span><span class="op">:</span> <span class="st">"Temperature (τ)   "</span>})</span>
-<span id="cb1-76"><a href="#cb1-76" aria-hidden="true" tabindex="-1"></a>Plot<span class="op">.</span><span class="fu">barY</span>(<span class="fu">softmax</span>(prob<span class="op">,</span> gain)</span>
-<span id="cb1-77"><a href="#cb1-77" aria-hidden="true" tabindex="-1"></a> )<span class="op">.</span><span class="fu">plot</span>({<span class="dt">x</span><span class="op">:</span> {<span class="dt">label</span><span class="op">:</span> <span class="st">"Categories"</span>}<span class="op">,</span> <span class="dt">y</span><span class="op">:</span> {<span class="dt">label</span><span class="op">:</span> <span class="st">"Probs"</span>}})</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
+<div class="sourceCode cell-code hidden" id="cb1" data-startfrom="65" data-source-offset="-1"><pre class="sourceCode js code-with-copy"><code class="sourceCode javascript" style="counter-reset: source-line 64;"><span id="cb1-65"><a href="#cb1-65" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">softmax</span>(logits<span class="op">,</span> temp){</span>
+<span id="cb1-66"><a href="#cb1-66" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> sum<span class="op">=</span><span class="dv">0</span></span>
+<span id="cb1-67"><a href="#cb1-67" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> (<span class="kw">let</span> index <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> index <span class="op">&lt;</span> logits<span class="op">.</span><span class="at">length</span><span class="op">;</span> index<span class="op">++</span>) {</span>
+<span id="cb1-68"><a href="#cb1-68" aria-hidden="true" tabindex="-1"></a>    sum<span class="op">+=</span> <span class="bu">Math</span><span class="op">.</span><span class="fu">exp</span>((logits[index] <span class="op">+</span> <span class="fl">1e-8</span>)<span class="op">/</span>temp)</span>
+<span id="cb1-69"><a href="#cb1-69" aria-hidden="true" tabindex="-1"></a>  }</span>
+<span id="cb1-70"><a href="#cb1-70" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> probs <span class="op">=</span> logits<span class="op">.</span><span class="fu">map</span>(x<span class="kw">=&gt;</span> <span class="bu">Math</span><span class="op">.</span><span class="fu">exp</span>((x <span class="op">+</span> <span class="fl">1e-8</span>)<span class="op">/</span>temp)<span class="op">/</span>sum)</span>
+<span id="cb1-71"><a href="#cb1-71" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> probs</span>
+<span id="cb1-72"><a href="#cb1-72" aria-hidden="true" tabindex="-1"></a>}</span>
+<span id="cb1-73"><a href="#cb1-73" aria-hidden="true" tabindex="-1"></a>prob <span class="op">=</span> <span class="bu">Array</span><span class="op">.</span><span class="fu">from</span>({<span class="dt">length</span><span class="op">:</span> <span class="dv">5</span>}<span class="op">,</span> ()<span class="kw">=&gt;</span><span class="bu">Math</span><span class="op">.</span><span class="fu">random</span>()<span class="op">*</span><span class="dv">10</span>)</span>
+<span id="cb1-74"><a href="#cb1-74" aria-hidden="true" tabindex="-1"></a>viewof gain <span class="op">=</span> Inputs<span class="op">.</span><span class="fu">range</span>([<span class="fl">0.1</span><span class="op">,</span> <span class="dv">50</span>]<span class="op">,</span> {<span class="dt">value</span><span class="op">:</span> <span class="dv">20</span><span class="op">,</span> <span class="dt">step</span><span class="op">:</span> <span class="fl">0.1</span><span class="op">,</span> <span class="dt">label</span><span class="op">:</span> <span class="st">"Temperature (τ)   "</span>})</span>
+<span id="cb1-75"><a href="#cb1-75" aria-hidden="true" tabindex="-1"></a>Plot<span class="op">.</span><span class="fu">barY</span>(<span class="fu">softmax</span>(prob<span class="op">,</span> gain)</span>
+<span id="cb1-76"><a href="#cb1-76" aria-hidden="true" tabindex="-1"></a> )<span class="op">.</span><span class="fu">plot</span>({<span class="dt">x</span><span class="op">:</span> {<span class="dt">label</span><span class="op">:</span> <span class="st">"Categories"</span>}<span class="op">,</span> <span class="dt">y</span><span class="op">:</span> {<span class="dt">label</span><span class="op">:</span> <span class="st">"Probs"</span>}})</span></code><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></pre></div>
 <div class="cell-output cell-output-display">
 <div>
 <div id="ojs-cell-1-1" data-nodetype="declaration">
@@ -304,6 +304,21 @@ p = [p_1, p_2, ..., p_n] \quad where \quad \sum_{i=1}^n p_i = 1
 </div>
 </div>
 </div>
+<p>This approach provides a differentiable alternative to argmax-styled one-hot approximation (at low temperatures). However, it still fails to introduce <strong>stochasticity</strong> at low temperatures. It always outputs a deterministic distribution for a given set of logits <span class="math inline">\(z\)</span> .</p>
+</section>
+<section id="gumbel-noise" class="level3">
+<h3 class="anchored" data-anchor-id="gumbel-noise">Gumbel Noise</h3>
+<p>Stochasticity is needed to encourage exploration and mimic random sampling from given categorical distribution. We can inject this stochasticity perturbing the logits by adding a noise <span class="math inline">\(\epsilon\)</span> value before applying softmax.</p>
+<p>Gumbel noise emerges as the perfect candidate for this because of following properties:</p>
+<ul>
+<li><p>It is mathematically aligned with categorical distributions and enables differentiable approximation of discrete sampling via the Gumbel-Softmax trick.</p></li>
+<li><p>It introduces randomness in a way that respects the structure of categorical distributions while enabling gradient-based optimization.</p></li>
+</ul>
+<p>Gumble noise <span class="math inline">\(\epsilon\)</span> is sampled from standard <a href="https://en.wikipedia.org/wiki/Gumbel_distribution"><strong><em>Gumbel distribution</em></strong></a>. We can draw such noise samples by first computing <span class="math inline">\(u \sim Uniform(0, 1)\)</span> and then computing <span class="math inline">\(\epsilon = -\log(-\log(u))\)</span> .</p>
+<p>Now putting it all together we have the Gumble Softmax Equation as:</p>
+<p><span class="math display">\[
+GumbelSoftmax(z_i, \tau) =  \frac{e^{(z_i + \epsilon)/\tau}}{\sum_{j=1}^{n} e^{(z_j + \epsilon)/\tau}}
+\]</span></p>
 
 
 </section>
