@@ -219,10 +219,11 @@ window.Quarto = {
 
 
 
+<hr>
 <p>Discrete sampling plays a crucial role in many machine learning tasks, such as classification, reinforcement learning, and generative modeling. Whether you’re predicting the next action for a reinforcement learning agent or selecting vectors from a codebook in a VQ-VAE, the process often involves choosing one value from a predefined set of categories based on a probability distribution.</p>
 <p>However, during training, this sampling process encounters a major roadblock: the lack of differentiability. This makes backpropagation—essential for optimizing neural networks—impossible. Enter <strong>Gumbel-Softmax</strong>, a technique that enables differentiable sampling while retaining the key properties of discrete sampling. In this blog post, we’ll explore the problem, dissect the Gumbel-Softmax trick, and understand how it solves this challenge.</p>
-<section id="what-is-discrete-sampling" class="level1">
-<h1>What is Discrete Sampling</h1>
+<section id="what-is-discrete-sampling" class="level2">
+<h2 class="anchored" data-anchor-id="what-is-discrete-sampling">What is Discrete Sampling</h2>
 <p>Discrete sampling refers to selecting the value of a random variable from a given discrete probability distribution <span class="math inline">\(p\)</span>, defined as:</p>
 <p><span class="math display">\[
 p = [p_1, p_2, ..., p_n] \quad where \quad \sum_{i=1}^n p_i = 1
@@ -236,12 +237,11 @@ p = [p_1, p_2, ..., p_n] \quad where \quad \sum_{i=1}^n p_i = 1
 <p>In practice, Sampling process is usually performed using:</p>
 <ol type="1">
 <li><p><code>argmax</code> selecting the value with highest probability. e.g.&nbsp;inference on a multi-class classifier.</p></li>
-<li><p><code>np.random.choice</code> selecting a random item with corresponding probability. e.g.&nbsp;a RL agent exploring the discrete action space.</p>
-<hr></li>
+<li><p><code>np.random.choice</code> selecting a random item with corresponding probability. e.g.&nbsp;a RL agent exploring the discrete action space.</p></li>
 </ol>
 </section>
-<section id="problem-with-discrete-sampling" class="level1">
-<h1>Problem with Discrete Sampling</h1>
+<section id="problem-with-discrete-sampling" class="level2">
+<h2 class="anchored" data-anchor-id="problem-with-discrete-sampling">Problem with Discrete Sampling</h2>
 <p>Sampling methods mentioned in the previous section provide options for both exploration (during data collection) and exploitation (during inference) of the distribution space.</p>
 <p>But, what if sampling is required during training phase e.g sampling vectors from a codebook while training a VQVAE or in tasks like reinforcement learning or generative modeling, where sampling is necessary to explore different actions or outputs.</p>
 <p>Well, the training stage requires all the intermediary operations to be differentiable, for the mighty <em>Backpropagation</em>. Let’s analyze the differentiability of sampling options available to us:</p>
@@ -251,8 +251,8 @@ p = [p_1, p_2, ..., p_n] \quad where \quad \sum_{i=1}^n p_i = 1
 </ol>
 <p>Now that we have a clear picture of the problem, lets build up to the Gumbel Softmax and find out how it overcomes the impediment of non-differentiability.</p>
 </section>
-<section id="gumbel-softmax" class="level1">
-<h1>Gumbel Softmax</h1>
+<section id="gumbel-softmax" class="level2">
+<h2 class="anchored" data-anchor-id="gumbel-softmax">Gumbel Softmax</h2>
 <p>As mentioned in the previous section, we need a differentiable solution for argmax-styled determinism and stochastic nature of random selection to maintain the exploration &amp; exploitation.</p>
 <p>We’ll now discuss the proposed two-fold solution:</p>
 <section id="softmax-with-temperature" class="level3">
