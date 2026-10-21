@@ -93,3 +93,35 @@
 /* light page (Quarto light theme) */
 body.quarto-light .gpu-cheat .sw h4{color:#4a7fb0}
 body.quarto-light .gpu-cheat .hw h4{color:#4f9a5a}
+
+/* GEMM hierarchy: nested boxes plus a wrapping data path */
+.gpu-stack{--gs-ink:#3A3E42;--gs-strong:#2A2E31;--gs-muted:#62666B;--gs-line:#D3CEC4;--gs-bg1:#ECE9E2;--gs-bg2:#E3E8EF;--gs-bg3:#E2EDE4;--gs-bg4:#E8E3F0;--gs-bg5:#F3E9D2;
+  --gs-mem:#c99a2e;--gs-reg:#62666B;--gs-tc:#8a73b5;--gs-acc1:#62666B;--gs-acc2:#4a7fb0;--gs-acc3:#4f9a5a;--gs-acc4:#8a73b5;--gs-acc5:#b2862a;
+  margin:2rem 0 2.25rem;font-family:var(--d-sans, sans-serif);color:var(--gs-ink)}
+body:not(.quarto-light) .gpu-stack{--gs-ink:#C8CCD0;--gs-strong:#DEE1E4;--gs-muted:#9AA0A6;--gs-line:#3B4045;--gs-bg1:#26292D;--gs-bg2:#222A33;--gs-bg3:#212D25;--gs-bg4:#29263A;--gs-bg5:#332D20;
+  --gs-mem:#e0bd62;--gs-reg:#9AA0A6;--gs-tc:#a891d6;--gs-acc1:#9AA0A6;--gs-acc2:#7aa6d4;--gs-acc3:#74b98a;--gs-acc4:#a891d6;--gs-acc5:#e0bd62}
+.gpu-stack .gs-box{border:1px solid var(--gs-line);border-left:3px solid var(--gs-acc);border-radius:8px;padding:12px 14px 14px;display:flex;flex-direction:column;gap:10px}
+.gpu-stack .gs-l1{background:var(--gs-bg1);--gs-acc:var(--gs-acc1)}
+.gpu-stack .gs-l2{background:var(--gs-bg2);--gs-acc:var(--gs-acc2)}
+.gpu-stack .gs-l3{background:var(--gs-bg3);--gs-acc:var(--gs-acc3)}
+.gpu-stack .gs-l4{background:var(--gs-bg4);--gs-acc:var(--gs-acc4)}
+.gpu-stack .gs-l5{background:var(--gs-bg5);--gs-acc:var(--gs-acc5)}
+.gpu-stack .gs-head{display:flex;flex-wrap:wrap;align-items:baseline;gap:2px 12px}
+.gpu-stack .gs-name{font-weight:700;font-size:1rem;color:var(--gs-strong)}
+.gpu-stack .gs-where{font-size:.9rem;color:var(--gs-muted);line-height:1.4}
+.gpu-stack .gs-where b{font-weight:600;color:var(--gs-ink)}
+.gpu-stack .gs-path{margin-top:14px;display:flex;flex-wrap:wrap;align-items:center;gap:8px 12px}
+.gpu-stack .gs-path-label{font-size:.72rem;font-weight:600;letter-spacing:.08em;text-transform:uppercase;color:var(--gs-muted)}
+.gpu-stack .gs-path ol{list-style:none;margin:0;padding:0;display:flex;flex-wrap:wrap;align-items:center;gap:8px 0}
+.gpu-stack .gs-path li{display:flex;align-items:center;gap:10px;margin:0}
+.gpu-stack .gs-path li:not(:last-child)::after{content:"→";color:var(--gs-muted);margin-right:10px}
+.gpu-stack .gs-chip{display:inline-flex;align-items:baseline;gap:5px;font-size:.9rem;font-weight:600;line-height:1.3;color:var(--gs-strong);padding:5px 12px;border-radius:999px;border:1.5px solid var(--gs-c);white-space:nowrap}
+.gpu-stack .gs-chip small{font-weight:400;color:var(--gs-muted);font-size:.8rem}
+.gpu-stack .gs-mem{--gs-c:var(--gs-mem)}
+.gpu-stack .gs-reg{--gs-c:var(--gs-reg)}
+.gpu-stack .gs-tc{--gs-c:var(--gs-tc)}
+@media (max-width:600px){
+  .gpu-stack .gs-box{padding:10px 8px 10px 10px;gap:8px}
+  .gpu-stack .gs-name{font-size:.95rem}
+  .gpu-stack .gs-where{font-size:.84rem}
+}

@@ -396,15 +396,36 @@ Per step, the block loads $32$ KB and performs $2 \times 128 \times 128 \times 6
 
 Notice the **double buffering** too: while one buffer in shared memory is being computed on, the next tile is already loading into the other. It's the same idea as warp switching in Figure 5: **overlap waiting with useful work.**
 
-Now every concept from this post has a job:
+Now every concept from this post has a job. Each box below is made of the boxes inside it:
 
-```
-GEMM (one kernel launch)
- └─ thread blocks          → spread across the 132 SMs
-     └─ warps / warpgroups → scheduled on the 4 sub-partitions, hiding latency
-         └─ MMA instructions on Tensor Cores
-             └─ thousands of FMAs each
- data path: HBM → L2 → shared memory (TMA) → registers → Tensor Cores
+```{=html}
+<figure class="gpu-stack" aria-label="How a GEMM breaks down, from one kernel launch to individual multiply-adds, and the path data takes">
+  <div class="gs-box gs-l1">
+    <div class="gs-head"><span class="gs-name">GEMM</span><span class="gs-where">one kernel launch</span></div>
+    <div class="gs-box gs-l2">
+      <div class="gs-head"><span class="gs-name">Thread blocks</span><span class="gs-where">spread across the <b>132 SMs</b></span></div>
+      <div class="gs-box gs-l3">
+        <div class="gs-head"><span class="gs-name">Warps &amp; warpgroups</span><span class="gs-where">take turns on the <b>4 sub-partitions</b>, hiding latency</span></div>
+        <div class="gs-box gs-l4">
+          <div class="gs-head"><span class="gs-name">MMA instructions</span><span class="gs-where">run on the <b>Tensor Cores</b></span></div>
+          <div class="gs-box gs-l5">
+            <div class="gs-head"><span class="gs-name">FMAs</span><span class="gs-where">thousands per MMA, each <i style="white-space:nowrap">d = a × b + c</i></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="gs-path" aria-label="Data path">
+    <span class="gs-path-label">Data path</span>
+    <ol>
+      <li class="gs-mem"><span class="gs-chip">HBM</span></li>
+      <li class="gs-mem"><span class="gs-chip">L2 cache</span></li>
+      <li class="gs-mem"><span class="gs-chip">Shared memory <small>via TMA</small></span></li>
+      <li class="gs-reg"><span class="gs-chip">Registers</span></li>
+      <li class="gs-tc"><span class="gs-chip">Tensor Cores</span></li>
+    </ol>
+  </div>
+</figure>
 ```
 
 This is what libraries like cuBLAS and CUTLASS do when you call `torch.matmul`. And **FlashAttention** is this same pattern applied to attention: it tiles $Q$, $K$ and $V$ through shared memory so the large $N \times N$ attention matrix never has to be written to HBM at all.
