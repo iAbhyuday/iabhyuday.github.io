@@ -21,7 +21,7 @@ function rr(x,y,w,h,r){ ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x,y,w,
 function box(x,y,w,h,o={}){ rr(x,y,w,h,o.r ?? 5); if(o.fill){ctx.fillStyle=o.fill;ctx.fill();} if(o.stroke){ctx.lineWidth=Math.min(o.lw||1,1.5);ctx.strokeStyle=o.stroke; if(o.dash) ctx.setLineDash(o.dash); ctx.stroke(); ctx.setLineDash([]);} }
 function txt(s,x,y,o={}){
   const size = (o.size||14) * (o.size>=15 ? 0.93 : 1);
-  const weight = Math.min(o.weight||400, 600);
+  const weight = (o.weight||400) >= 600 ? 700 : 400;
   ctx.font = `${weight} ${size}px ${FONTS[o.font||'body']}`;
   ctx.fillStyle = o.color || C.ink; ctx.textAlign = o.align||'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillText(s,x,y);
@@ -543,9 +543,9 @@ function render(st){
 }
 
 function init(){
-  const bodyFont = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  const bodyFont = 'Lato, "Helvetica Neue", Helvetica, Arial, sans-serif';
   FONTS.body = bodyFont; FONTS.display = bodyFont;
-  FONTS.mono = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  FONTS.mono = bodyFont;
   document.querySelectorAll('figure.gpu-fig[data-fig]').forEach(mount);
   if ('IntersectionObserver' in window) {
     const io = new IntersectionObserver(es => es.forEach(e => { const st = figs.find(f=>f.fig===e.target); if (st) st.visible = e.isIntersecting; }), {rootMargin:'100px'});
@@ -559,7 +559,7 @@ function init(){
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(()=>figs.forEach(render));
+  if (document.fonts && document.fonts.load) Promise.all(['400 14px Lato','700 14px Lato'].map(f=>document.fonts.load(f).catch(()=>{}))).then(()=>figs.forEach(render));
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();

@@ -286,7 +286,7 @@ window.Quarto = {
 <h2 class="anchored" data-anchor-id="the-chip-132-workshops-and-a-warehouse">The chip: 132 workshops and a warehouse</h2>
 <p>Let’s start from the outside. An H100 is a single large piece of silicon, the <strong>GH100 die</strong>, sitting next to stacks of memory on the same package.</p>
 <figure class="gpu-fig column-body-outset figure" data-fig="chip" aria-label="Animated diagram of the GH100 die with SMs, L2 cache and HBM stacks">
-<figcaption><b>Figure 1 · The chip.</b> Blue squares are <i>thread blocks</i> (chunks of your work). The GigaThread engine hands each one to an SM with free room, and that SM lights up teal while it runs. Copper dots are data streaming from the HBM stacks into the L2 cache, which every SM shares.</figcaption>
+<figcaption><b>Figure 1 · The chip.</b> Blue squares are <i>thread blocks</i> (chunks of your work). The GigaThread engine hands each one to an SM with free room, and that SM lights up green while it runs. Gold dots are data streaming from the HBM stacks into the L2 cache, which every SM shares.</figcaption>
 </figure>
 <p>Three parts matter here.</p>
 <p><strong>Streaming Multiprocessors (SMs).</strong> The SM is the basic building block: the unit that gets copied over and over. The full GH100 die has 144 SMs arranged in 8 groups called GPCs (graphics processing clusters). A die this big almost always has a few manufacturing defects, so NVIDIA switches off the faulty SMs and sells the chip with <strong>132 enabled</strong>. That’s the dashed outlines in the figure.</p>
@@ -329,7 +329,7 @@ add&lt;&lt;&lt;4096, 256&gt;&gt;&gt;(a, b, c, n);</code></pre>
 <h2 class="anchored" data-anchor-id="inside-one-sm">Inside one SM</h2>
 <p>Now let’s zoom into a single SM. Everything that actually <em>computes</em> lives here.</p>
 <figure class="gpu-fig column-body-outset figure" data-fig="sm" aria-label="Animated diagram of one SM with four sub-partitions">
-<figcaption><b>Figure 2 · One SM.</b> Each of the four sub-partitions has its own warp scheduler. Every tick, each scheduler issues one instruction. When it's a regular FP32 instruction, all 32 CUDA cores flash together (teal). When it's a matrix instruction, the Tensor Core flashes (violet). Copper dots move data from shared memory into registers.</figcaption>
+<figcaption><b>Figure 2 · One SM.</b> Each of the four sub-partitions has its own warp scheduler. Every tick, each scheduler issues one instruction. When it's a regular FP32 instruction, all 32 CUDA cores flash together (green). When it's a matrix instruction, the Tensor Core flashes (purple). Gold dots move data from shared memory into registers.</figcaption>
 </figure>
 <p>An H100 SM is split into <strong>four sub-partitions</strong> (NVIDIA’s whitepapers call them <em>processing blocks</em>; profilers call them <em>SMSPs</em>). Each sub-partition has:</p>
 <ul>
@@ -388,7 +388,7 @@ add&lt;&lt;&lt;4096, 256&gt;&gt;&gt;(a, b, c, n);</code></pre>
 <h2 class="anchored" data-anchor-id="threads-warps-and-lanes-who-runs-where">Threads, warps and lanes: who runs where</h2>
 <p>This is the part that confuses most people, including me for a long time. We have <em>software</em> things (threads, blocks) and <em>hardware</em> things (SMs, sub-partitions, cores). Two words connect them: <strong>warp</strong> and <strong>lane</strong>.</p>
 <figure class="gpu-fig column-body-outset figure" data-fig="threads" aria-label="Animation mapping 256 threads to 8 warps, 4 sub-partitions and 32 lanes">
-<figcaption><b>Figure 3 · Threads → warps → lanes.</b> A block of 256 threads runs on one SM in three steps. Follow the copper thread: thread 52 is in warp 1 at lane 20. It always runs on lane 20 of sub-partition 1, but only on the cycles when its warp is picked.</figcaption>
+<figcaption><b>Figure 3 · Threads → warps → lanes.</b> A block of 256 threads runs on one SM in three steps. Follow the gold thread: thread 52 is in warp 1 at lane 20. It always runs on lane 20 of sub-partition 1, but only on the cycles when its warp is picked.</figcaption>
 </figure>
 <p><strong>Step 1: threads become warps.</strong> The SM cuts every block into groups of <strong>32 consecutive threads</strong>, called <strong>warps</strong>. Threads 0–31 form warp 0, threads 32–63 form warp 1, and so on. A warp is the unit the hardware actually schedules: all 32 threads in a warp execute the <strong>same instruction at the same time</strong>, each on its own data. NVIDIA calls this SIMT, <em>single instruction, multiple threads</em>.</p>
 <p>A thread’s position inside its warp, from 0 to 31, is its <strong>lane</strong>:</p>
@@ -675,7 +675,7 @@ C = A \times B, \qquad A \in \mathbb{R}^{M \times K},\ B \in \mathbb{R}^{K \time
 </table>
 <p>But that intensity only holds if each matrix is read from HBM <strong>once</strong>. A naive kernel, where every multiply-add fetches its two inputs from memory, does 2 FLOPs per 4 bytes: just 0.5 FLOP/B, deep in memory-bound territory. The trick that closes the gap is <strong>tiling</strong>.</p>
 <figure class="gpu-fig column-body-outset figure" data-fig="matmul" aria-label="Animation of a tiled GEMM moving tiles from HBM through L2 and shared memory to Tensor Cores">
-<figcaption><b>Figure 8 · A tiled GEMM.</b> One thread block owns one output tile of C (outlined). It walks along K: each step, the TMA copies a tile of A and a tile of B from HBM (copper) into shared memory, and the Tensor Cores multiply them into registers (violet). The next tile is already loading while the current one is computed. At the end, the finished tile is written back to HBM once.</figcaption>
+<figcaption><b>Figure 8 · A tiled GEMM.</b> One thread block owns one output tile of C (outlined). It walks along K: each step, the TMA copies a tile of A and a tile of B from HBM (gold) into shared memory, and the Tensor Cores multiply them into registers (purple). The next tile is already loading while the current one is computed. At the end, the finished tile is written back to HBM once.</figcaption>
 </figure>
 <p>Each thread block computes one tile of <span class="math inline">\(C\)</span>, say 128×128, and loops over <span class="math inline">\(K\)</span> in chunks of 64:</p>
 <ol type="1">
