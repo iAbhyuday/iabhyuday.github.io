@@ -41,6 +41,114 @@ function along(pts,u){
 }
 const fmt = n => n.toLocaleString('en-US');
 
+// ---------- Figure: CPU core vs GPU SM ----------
+let cpuMode = 'both';
+const CPU_LANE_HI = 5, SM_LANE_HI = 37;   // the outlined lane on each side
+function drawCPU(t){
+  // timeline: chain (13 s) then independent items (14 s)
+  let scene, lt;
+  if (cpuMode === 'chain') { scene = 0; lt = t % 13; }
+  else if (cpuMode === 'par') { scene = 1; lt = t % 14; }
+  else { const u = t % 27; scene = u < 13 ? 0 : 1; lt = scene ? u - 13 : u; }
+
+  // ----- chain model: 12 dependent steps -----
+  const S_PER_NS_A = 0.45/1.4, CPU_STEP = 1.4, GPU_STEP = 18;
+  const nsA = lt / S_PER_NS_A;
+  const cpuSteps = Math.min(12, nsA / CPU_STEP), gpuSteps = Math.min(12, nsA / GPU_STEP);
+  // ----- parallel model: 2,048 items -----
+  const S_PER_NS_B = 0.6, CPU_TICK = 1/3.5, GPU_TICK = 1/1.8;
+  const nsB = lt / S_PER_NS_B;
+  const cpuDone = Math.min(2048, Math.floor(nsB / CPU_TICK) * 32), gpuDone = Math.min(2048, Math.floor(nsB / GPU_TICK) * 128);
+  const cpuFlash = scene===1 && cpuDone<2048 ? Math.max(0, 1 - ((nsB / CPU_TICK) % 1) * 1.6) : 0;
+  const gpuFlash = scene===1 && gpuDone<2048 ? Math.max(0, 1 - ((nsB / GPU_TICK) % 1) * 1.6) : 0;
+  const chainPulse = 0.5 + 0.5*Math.sin(lt*6);
+
+  // ===== anatomy =====
+  const ctrl = A(C.muted,.18), cache = A(C.mem,.22), regs = A(C.mem,.12);
+  const L = {x:30, w:400}, Rr = {x:470, w:400};
+  txt('One CPU core', L.x, 34, {size:16, weight:700});
+  txt('~3.5 GHz · runs 1–2 threads', L.x+L.w, 34, {size:12, color:C.muted, align:'right'});
+  txt('One H100 SM', Rr.x, 34, {size:16, weight:700});
+  txt('~1.8 GHz · holds up to 2,048 threads', Rr.x+Rr.w, 34, {size:12, color:C.muted, align:'right'});
+
+  // CPU core floorplan: mostly control and cache
+  box(L.x, 48, L.w, 248, {fill:C.die, stroke:C.line, r:6});
+  box(L.x+10, 58, L.w-20, 44, {fill:ctrl, r:3}); txt('Fetch · decode · branch prediction', L.x+20, 85, {size:12.5});
+  box(L.x+10, 108, L.w-20, 56, {fill:ctrl, r:3}); txt('Out-of-order engine', L.x+20, 131, {size:12.5});
+  txt('keeps hundreds of instructions in flight', L.x+20, 150, {size:11.5, color:C.muted});
+  box(L.x+10, 170, L.w-20, 58, {fill:cache, r:3}); txt('L1 + L2 cache · ~2 MB', L.x+20, 196, {size:12.5});
+  txt('most data is found here in a few cycles', L.x+20, 215, {size:11.5, color:C.muted});
+  box(L.x+10, 234, L.w-20, 52, {fill:A(C.cuda,.1), r:3});
+  txt('Vector units · 2 × 16 FP32 lanes', L.x+20, 252, {size:12.5});
+  for (let i=0;i<32;i++){
+    const x = L.x+20+(i%16)*10.5, y = 259+Math.floor(i/16)*12;
+    let a = .3; if (scene===1 && cpuDone<2048) a = .3+.7*cpuFlash; if (scene===0 && i===CPU_LANE_HI && cpuSteps<12) a = .35+.65*chainPulse;
+    box(x, y, 8, 9, {fill:A(C.cuda,a), r:1.5});
+    if (i===CPU_LANE_HI) box(x-2, y-2, 12, 13, {stroke:C.ink, lw:1.3, r:2});
+  }
+  txt('one SIMD lane', L.x+205, 272, {size:11, color:C.ink});
+  line(L.x+201, 268, L.x+20+CPU_LANE_HI*10.5+11, 264, C.muted, 1);
+
+  // SM floorplan: mostly math lanes and registers
+  box(Rr.x, 48, Rr.w, 248, {fill:C.die, stroke:C.line, r:6});
+  box(Rr.x+10, 58, Rr.w-20, 22, {fill:ctrl, r:3}); txt('4 warp schedulers · simple, in order', Rr.x+20, 74, {size:12});
+  box(Rr.x+10, 86, Rr.w-20, 34, {fill:regs, r:3}); txt('Register file · 256 KB · every thread keeps its state here', Rr.x+20, 108, {size:12});
+  box(Rr.x+10, 126, Rr.w-20, 92, {fill:A(C.cuda,.1), r:3});
+  txt('128 FP32 lanes = 128 "CUDA cores"', Rr.x+20, 143, {size:12.5});
+  for (let i=0;i<128;i++){
+    const x = Rr.x+20+(i%32)*11.4, y = 152+Math.floor(i/32)*15;
+    let a = .3; if (scene===1 && gpuDone<2048) a = .3+.7*gpuFlash; if (scene===0 && i===SM_LANE_HI && gpuSteps<12) a = .35+.65*chainPulse;
+    box(x, y, 9, 12, {fill:A(C.cuda,a), r:1.5});
+    if (i===SM_LANE_HI) box(x-2, y-2, 13, 16, {stroke:C.ink, lw:1.3, r:2});
+  }
+  box(Rr.x+10, 224, Rr.w-20, 26, {fill:A(C.tensor,.22), r:3}); txt('4 Tensor Cores', Rr.x+20, 241, {size:12});
+  box(Rr.x+10, 256, Rr.w-20, 30, {fill:cache, r:3}); txt('L1 / shared memory · 256 KB', Rr.x+20, 276, {size:12});
+
+  txt('Outlined: one "CUDA core" is one lane, the same kind of thing as one SIMD lane in a CPU core. The SM is what compares to a CPU core.', 450, 316, {size:12, color:C.muted, align:'center'});
+  line(30, 328, 870, 328, C.line, 1);
+
+  // ===== race =====
+  if (scene === 0) {
+    txt('Workload 1 · one chain of 12 dependent steps (each step needs the previous result)', 450, 352, {size:13.5, weight:700, align:'center'});
+    [[L, cpuSteps, 'CPU core', CPU_STEP, C.warp], [Rr, gpuSteps, 'One GPU thread', GPU_STEP, C.warp]].forEach(([P, steps, name, per, col], side)=>{
+      txt(name, P.x, 382, {size:12.5, weight:700});
+      txt('≈ '+per+' ns per step', P.x+P.w, 382, {size:12, color:C.muted, align:'right'});
+      for (let k=0;k<12;k++){
+        const x = P.x + k*33.4, f = clamp(steps - k, 0, 1);
+        box(x, 394, 29, 36, {fill:A(col,.1), stroke:C.line, r:3});
+        if (f>0) box(x, 394, 29*f, 36, {fill:A(col, f<1?.45:.75), r:3});
+      }
+      const shownNs = Math.min(nsA, 12*per);
+      txt(`step ${Math.floor(steps)} of 12 · ${shownNs.toFixed(1)} ns`, P.x, 452, {size:12.5});
+      if (steps >= 12) txt('✓ done in '+(12*per).toFixed(0)+' ns', P.x, 474, {size:13, weight:700, color:C.cuda});
+      if (side===1) {
+        txt('the other 127 lanes have nothing to do', P.x, 474, {size:12, color:C.idle});
+        for (let i=0;i<128;i++) box(P.x+i*3.1, 486, 2.2, 10, {fill: i===SM_LANE_HI? A(C.cuda,.4+.6*chainPulse) : A(C.idle,.25), r:0.5});
+      } else {
+        txt('caches and out-of-order execution keep one thread fast', P.x, 498, {size:12, color:C.muted});
+      }
+    });
+    if (lt > 6.5) txt('For one sequential thread the CPU core wins by about 13×. GPU threads are individually slow.', 450, 548, {size:13, align:'center', weight:700});
+    txt('illustrative: a dependent load per step, ~5 cycles on the CPU vs ~33 on the SM', 450, 570, {size:11.5, align:'center', color:C.muted});
+  } else {
+    txt('Workload 2 · 2,048 independent items (the same operation on every item)', 450, 352, {size:13.5, weight:700, align:'center'});
+    [[L, cpuDone, 'CPU core', '32 lanes × 3.5 GHz', CPU_TICK, 32], [Rr, gpuDone, 'One SM', '128 lanes × 1.8 GHz', GPU_TICK, 128]].forEach(([P, done, name, rate, tick, per])=>{
+      txt(name, P.x, 380, {size:12.5, weight:700});
+      txt(rate, P.x+P.w, 380, {size:12, color:C.muted, align:'right'});
+      const cs = 6.2, rows = 32, cols = 64;
+      for (let i=0;i<rows*cols;i++){
+        const r = Math.floor(i/cols), c = i%cols;
+        const fresh = i < done && i >= done - per && done < 2048;
+        box(P.x + c*cs, 390 + r*4.6, cs-1, 3.6, {fill: i<done ? (fresh? C.cuda : A(C.cuda,.5)) : A(C.line,.5), r:0.5});
+      }
+      const ns = done>=2048 ? (2048/per)*tick : nsB;
+      txt(`${fmt(done)} / 2,048 done · ${ns.toFixed(1)} ns`, P.x, 551, {size:12.5});
+      if (done>=2048) txt('✓', P.x+P.w-10, 551, {size:14, weight:700, color:C.cuda, align:'right'});
+    });
+    if (lt > 6) txt('Per unit the SM is ~2× faster here. The GPU\'s real edge: 132 SMs, and Tensor Cores on top.', 450, 580, {size:13, align:'center', weight:700});
+  }
+}
+
 // ---------- Figure: the chip ----------
 const CHIP = (() => {
   const die = {x:150,y:50,w:600,h:510};
@@ -452,8 +560,8 @@ function drawMatmul(t){
 // ---------- mounting ----------
 // Base pace per figure (1 = original speed). Chosen so each event can be
 // followed by eye: a block dispatch, one scheduler issue, one k-step.
-const PACE = {chip:0.35, sm:0.45, threads:0.55, warps:0.4, cores:0.5, memory:0.6, roofline:0.6, matmul:0.5};
-const DRAW = {chip:drawChip, sm:drawSM, threads:drawMapping, warps:drawWarps, cores:drawCores, memory:drawMemory, roofline:drawRoof, matmul:drawMatmul};
+const PACE = {cpu:1, chip:0.35, sm:0.45, threads:0.55, warps:0.4, cores:0.5, memory:0.6, roofline:0.6, matmul:0.5};
+const DRAW = {cpu:drawCPU, chip:drawChip, sm:drawSM, threads:drawMapping, warps:drawWarps, cores:drawCores, memory:drawMemory, roofline:drawRoof, matmul:drawMatmul};
 const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const figs = [];
 
@@ -494,6 +602,13 @@ function mount(fig){
   fig.insertBefore(scroll, cap);
 
   // optional controls
+  if (id === 'cpu') {
+    const ctl = el('div',{class:'gf-ctl'});
+    ctl.appendChild(el('span',{class:'gf-speed-label'},'Workload'));
+    const opts = [['both','Both, in turn'],['chain','Dependent chain'],['par','Independent items']];
+    const chips = opts.map(([v,l])=>{ const b=el('button',{class:'gf-chip',type:'button','aria-pressed':String(v==='both')}, l); b.addEventListener('click',()=>{ cpuMode=v; st.t=0; chips.forEach(x=>x.setAttribute('aria-pressed', String(x===b))); }); ctl.appendChild(b); return b; });
+    fig.insertBefore(ctl, cap);
+  }
   if (id === 'warps') {
     const ctl = el('div',{class:'gf-ctl'});
     ctl.innerHTML = `<label>Warps per scheduler <input type="range" min="1" max="16" step="1" value="2" aria-label="Warps per scheduler"><output>2 warps</output></label>`;
