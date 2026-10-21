@@ -6,6 +6,7 @@ body.quarto-light{
   --d-link:rgba(78,132,120,.55); --d-link-h:#4E8478; --d-code-bg:#EBE8E0;
   --d-accent:#4E8478; --d-panel:#FAF9F5; --d-shadow:rgba(42,46,49,.10); --d-select:rgba(78,132,120,.20);
   --d-hshadow:0 1px 1px rgba(42,46,49,.10), 0 2px 8px rgba(42,46,49,.10);
+  --d-h-main:var(--d-strong); --d-h-sub:var(--d-strong);
 }
 body:not(.quarto-light){
   --d-ink:#C8CCD0; --d-strong:#DEE1E4; --d-muted:#949AA0; --d-faint:#878D93;
@@ -13,6 +14,7 @@ body:not(.quarto-light){
   --d-link:rgba(141,191,175,.5); --d-link-h:#8DBFAF; --d-code-bg:#26292D;
   --d-accent:#8DBFAF; --d-panel:#26292D; --d-shadow:rgba(0,0,0,.35); --d-select:rgba(141,191,175,.22);
   --d-hshadow:0 1px 2px rgba(0,0,0,.45), 0 3px 10px rgba(0,0,0,.30);
+  --d-h-main:#E0C27A; --d-h-sub:#C3C9D0; /* dark mode: gold headings, silver subheadings */
 }
 :root{
   --d-serif:"Source Serif 4", Georgia, "Times New Roman", serif;
@@ -30,7 +32,7 @@ body{color:var(--d-ink);-webkit-font-smoothing:antialiased}
 
 /* title block (d-title) */
 #title-block-header.quarto-title-block{margin-top:2.5rem}
-.quarto-title h1.title{font-family:var(--d-serif);font-size:50px;font-weight:600;line-height:1.1em;margin:0 0 .5rem;color:var(--d-strong);text-shadow:var(--d-hshadow);text-wrap:balance}
+.quarto-title h1.title{font-family:var(--d-serif);font-size:50px;font-weight:600;line-height:1.1em;margin:0 0 .5rem;color:var(--d-h-main);text-shadow:var(--d-hshadow);text-wrap:balance}
 @media (max-width:767px){.quarto-title h1.title{font-size:40px}}
 .quarto-title-block .description, .quarto-title .subtitle{font-family:var(--d-sans);font-weight:300;font-size:1.2rem;line-height:1.55em;color:var(--d-muted)}
 .quarto-title .quarto-categories{margin-top:1rem}
@@ -49,11 +51,11 @@ main.content{font-size:1.08rem;line-height:1.72em}
 main.content > hr:first-of-type{display:none}
 main.content p{margin:0 0 1em}
 
-main.content h2{font-family:var(--d-serif);text-shadow:var(--d-hshadow);font-weight:600;font-size:24px;line-height:1.25em;margin:2.5rem 0 1.5rem;padding-bottom:1rem;border-bottom:1px solid var(--d-rule);color:var(--d-strong)}
+main.content h2{font-family:var(--d-serif);text-shadow:var(--d-hshadow);font-weight:600;font-size:24px;line-height:1.25em;margin:2.5rem 0 1.5rem;padding-bottom:1rem;border-bottom:1px solid var(--d-rule);color:var(--d-h-main)}
 @media (min-width:1024px){main.content h2{font-size:32px}}
-main.content h3{font-family:var(--d-serif);text-shadow:var(--d-hshadow);font-weight:600;font-size:18px;line-height:1.4em;margin:2em 0 1em;color:var(--d-strong)}
+main.content h3{font-family:var(--d-serif);text-shadow:var(--d-hshadow);font-weight:600;font-size:18px;line-height:1.4em;margin:2em 0 1em;color:var(--d-h-sub)}
 @media (min-width:1024px){main.content h3{font-size:20px}}
-main.content h4{font-family:var(--d-sans);font-weight:600;font-size:14px;line-height:1.4em;text-transform:uppercase;letter-spacing:.04em}
+main.content h4{font-family:var(--d-sans);font-weight:600;font-size:14px;line-height:1.4em;text-transform:uppercase;letter-spacing:.04em;color:var(--d-h-sub)}
 
 main.content a{color:inherit;text-decoration:none;border-bottom:1px solid var(--d-link)}
 main.content a:hover{border-bottom-color:var(--d-link-h);color:var(--d-link-h)}
@@ -83,14 +85,14 @@ figcaption b, figcaption strong{font-weight:600;color:var(--d-strong)}
 
 
 /* blog listing */
-.quarto-listing-default .listing-title{font-family:var(--d-serif);font-weight:600;color:var(--d-strong)}
+.quarto-listing-default .listing-title{font-family:var(--d-serif);font-weight:600;color:var(--d-h-main)}
 .quarto-listing-default .listing-description{color:var(--d-muted)}
 .quarto-post{border-bottom:1px solid var(--d-rule)!important}
 
 /* polish */
 main.content table th, main.content table td{line-height:1.5em;padding-top:6px;padding-bottom:6px}
 #title-block-header .quarto-title-meta:not(:has(.quarto-title-meta-heading)){display:none}
-.quarto-post .listing-title{font-family:var(--d-serif);font-weight:600;font-size:1.3rem;line-height:1.3;color:var(--d-strong)}
+.quarto-post .listing-title{font-family:var(--d-serif);font-weight:600;font-size:1.3rem;line-height:1.3;color:var(--d-h-main)}
 
 /* listing meta and UI text in the sans */
 .quarto-listing .listing-date, .quarto-listing .listing-author, .quarto-listing .listing-categories, .quarto-listing .listing-description{font-family:var(--d-sans)}
