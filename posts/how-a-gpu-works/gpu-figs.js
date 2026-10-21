@@ -600,6 +600,10 @@ function mount(fig){
   boxEl.appendChild(cv); scroll.appendChild(boxEl); st.canvas = cv;
   const cap = fig.querySelector('figcaption');
   fig.insertBefore(scroll, cap);
+  // phones: the figure fits the column; tapping opens it full screen, turned sideways
+  const expand = el('button',{class:'gf-expand',type:'button','aria-label':'Enlarge figure'}, '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7"/></svg>Full screen');
+  expand.addEventListener('click', () => openFull(st, expand));
+  cv.addEventListener('click', () => { if (narrow.matches) openFull(st, expand); });
 
   // optional controls
   if (id === 'cpu') {
@@ -639,7 +643,7 @@ function mount(fig){
   const restart = el('button',{class:'gf-link',type:'button'}, '↺ Restart');
   play.addEventListener('click',()=>{ st.playing=!st.playing; sync(); });
   restart.addEventListener('click',()=>{ st.t=0; st.playing=true; sync(); });
-  sync(); bar.appendChild(play); bar.appendChild(restart);
+  sync(); st.syncBar = sync; bar.appendChild(play); bar.appendChild(restart); bar.appendChild(expand);
   const sp = el('span',{class:'gf-speed',role:'group','aria-label':'Animation speed'});
   sp.appendChild(el('span',{class:'gf-speed-label'},'Speed'));
   const speedBtns = [0.5,1,2].map(v=>{ const b=el('button',{class:'gf-link',type:'button','aria-pressed':String(v===1)}, v+'×'); b.addEventListener('click',()=>{ st.speed=v; speedBtns.forEach(x=>x.setAttribute('aria-pressed', String(x===b))); }); sp.appendChild(b); return b; });
@@ -652,7 +656,8 @@ function mount(fig){
 }
 
 function render(st){
-  const cv = st.canvas, r = cv.getBoundingClientRect();
+  // layout size (not the on-screen box), so a rotated full-screen canvas still scales right
+  const cv = st.canvas, r = {width: cv.clientWidth, height: cv.clientHeight};
   const dpr = Math.min(window.devicePixelRatio||1, 2);
   const w = Math.max(1, Math.round(r.width*dpr)), h = Math.max(1, Math.round(r.height*dpr));
   if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
@@ -661,6 +666,47 @@ function render(st){
   ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,w,h);
   ctx.setTransform(dpr*scale,0,0,dpr*scale,0,0);
   try { st.draw(st.t); } catch (e) { console.error(e); }
+}
+
+const narrow = window.matchMedia('(max-width: 760px)');
+function openFull(st, opener){
+  if (st.full) return;
+  const ov = el('div',{class:'gpu-fig gf-full', role:'dialog', 'aria-modal':'true', 'aria-label':'Enlarged figure'});
+  if (st.fig.classList.contains('light')) ov.classList.add('light');
+  ov.style.background = st.theme.surface;
+  const frame = el('div',{class:'gf-full-frame'}), box = el('div',{class:'gf-full-box'});
+  const cv2 = el('canvas',{role:'img','aria-label': st.canvas.getAttribute('aria-label')});
+  box.appendChild(cv2);
+  const close = el('button',{class:'gf-full-btn gf-full-close',type:'button','aria-label':'Close enlarged figure'}, '✕');
+  const pp = el('button',{class:'gf-full-btn gf-full-play',type:'button'});
+  const syncPP = () => { pp.textContent = st.playing ? '❚❚' : '▶'; pp.setAttribute('aria-label', st.playing ? 'Pause animation' : 'Play animation'); };
+  pp.addEventListener('click', () => { st.playing = !st.playing; syncPP(); if (st.syncBar) st.syncBar(); });
+  syncPP();
+  frame.appendChild(box); frame.appendChild(pp); frame.appendChild(close); ov.appendChild(frame);
+  const layout = () => {
+    const vw = window.innerWidth, vh = window.innerHeight, portrait = vh > vw;
+    const fw = portrait ? vh : vw, fh = portrait ? vw : vh;
+    Object.assign(frame.style, portrait
+      ? {width: fw+'px', height: fh+'px', left: vw+'px', top: '0px', transform: 'rotate(90deg)', transformOrigin: 'top left'}
+      : {width: fw+'px', height: fh+'px', left: '0px', top: '0px', transform: 'none'});
+    const bw = Math.min(fw - 128, (fh - 16) * 1.5);
+    box.style.width = bw + 'px'; box.style.height = (bw / 1.5) + 'px';
+    render(st);
+  };
+  const prevOverflow = document.documentElement.style.overflow;
+  const done = () => {
+    st.full = false; st.canvas = st.inline; ov.remove();
+    document.documentElement.style.overflow = prevOverflow;
+    window.removeEventListener('resize', layout); document.removeEventListener('keydown', onKey);
+    render(st); if (opener) opener.focus();
+  };
+  const onKey = (e) => { if (e.key === 'Escape') done(); };
+  close.addEventListener('click', done);
+  document.body.appendChild(ov);
+  document.documentElement.style.overflow = 'hidden';
+  st.inline = st.canvas; st.canvas = cv2; st.full = true;
+  window.addEventListener('resize', layout); document.addEventListener('keydown', onKey);
+  layout(); close.focus();
 }
 
 function applyTheme(st){
@@ -691,7 +737,7 @@ function init(){
   let last = performance.now();
   function frame(now){
     const dt = Math.min(.1,(now-last)/1000); last = now;
-    for (const st of figs) { if (!st.visible) continue; if (st.playing) st.t += dt * st.pace * st.speed; render(st); }
+    for (const st of figs) { if (!st.visible && !st.full) continue; if (st.playing) st.t += dt * st.pace * st.speed; render(st); }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
