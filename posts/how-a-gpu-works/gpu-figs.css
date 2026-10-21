@@ -1,5 +1,5 @@
 /* Animated figures for "How a GPU Works", styled after distill.pub:
-   palette follows the D3 category colours; text uses the blog's Lato.
+   palette follows the D3 category colours; text uses the system sans stack, as Distill does.
    figures sit directly on the page, hairline strokes, soft fills,
    quiet sans-serif labels, understated controls, gray captions.
    Tokens default to the dark page (darkly theme); gpu-figs.js adds
@@ -24,7 +24,7 @@
 .gpu-fig canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 
 /* controls: one quiet row under the figure */
-.gpu-fig .gf-bar,.gpu-fig .gf-ctl{font-family:Lato,"Helvetica Neue",Arial,sans-serif;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:4px 0;font-size:.82rem;color:var(--g-muted)}
+.gpu-fig .gf-bar,.gpu-fig .gf-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:4px 0;font-size:.82rem;color:var(--g-muted)}
 .gpu-fig .gf-ctl{padding-top:0}
 .gpu-fig .gf-play{width:30px;height:30px;border-radius:50%;border:1px solid var(--g-line);background:transparent;color:var(--g-ink);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .gpu-fig .gf-play:hover{border-color:var(--g-muted)}
@@ -49,7 +49,7 @@
 .gpu-fig input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--g-ink);border:0}
 
 /* caption */
-.gpu-fig figcaption{margin-top:.6rem;font-family:Lato,"Helvetica Neue",Arial,sans-serif;font-size:.85rem;line-height:1.6;color:var(--g-muted);max-width:44rem}
+.gpu-fig figcaption{margin-top:.75rem;font-size:13px;line-height:1.5em;color:var(--g-muted);max-width:44rem}
 .gpu-fig figcaption b{color:var(--g-ink);font-weight:600}
 .gpu-fig figcaption i{font-style:italic}
 
