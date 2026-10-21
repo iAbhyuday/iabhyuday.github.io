@@ -69,3 +69,7 @@
 .gpu-cheat dt{font-weight:600}
 .gpu-cheat dd{margin:0;min-width:0}
 @media (prefers-reduced-motion:reduce){.gpu-fig *{transition:none!important}}
+
+/* light page (Quarto light theme) */
+body.quarto-light .gpu-cheat .sw h4{color:#1f77b4}
+body.quarto-light .gpu-cheat .hw h4{color:#2ca02c}

@@ -531,9 +531,7 @@ function mount(fig){
   const firstCtl = fig.querySelector('.gf-ctl');
   fig.insertBefore(bar, firstCtl || cap);
 
-  if (isLightBg()) fig.classList.add('light');
-  st.theme = readTheme(fig);
-  const pg = pageBg(); if (pg) st.theme.surface = pg;
+  applyTheme(st);
   figs.push(st);
 }
 
@@ -549,6 +547,20 @@ function render(st){
   try { st.draw(st.t); } catch (e) { console.error(e); }
 }
 
+function applyTheme(st){
+  st.fig.classList.toggle('light', isLightBg());
+  st.theme = readTheme(st.fig);
+  const pg = pageBg(); if (pg) st.theme.surface = pg;
+}
+// Quarto's light/dark toggle swaps stylesheets and the body class;
+// re-read colours once the new stylesheet has applied.
+function watchTheme(){
+  let timer = null;
+  const refresh = () => { clearTimeout(timer); timer = setTimeout(() => figs.forEach(st => { applyTheme(st); render(st); }), 60); };
+  new MutationObserver(refresh).observe(document.body, {attributes:true, attributeFilter:['class']});
+  new MutationObserver(refresh).observe(document.head, {childList:true, subtree:true, attributes:true, attributeFilter:['disabled','rel','media']});
+  window.addEventListener('quarto-hrChanged', refresh);
+}
 function init(){
   const bodyFont = 'Lato, "Helvetica Neue", Helvetica, Arial, sans-serif';
   FONTS.body = bodyFont; FONTS.display = bodyFont;
@@ -559,6 +571,7 @@ function init(){
     figs.forEach(st => io.observe(st.fig));
   } else figs.forEach(st => st.visible = true);
   figs.forEach(render);
+  watchTheme();
   let last = performance.now();
   function frame(now){
     const dt = Math.min(.1,(now-last)/1000); last = now;

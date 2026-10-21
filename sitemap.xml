@@ -1,27 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
-    <loc>https://iAbhyuday.github.io/iabhyuday.github.io/about.html</loc>
-    <lastmod>2026-10-21T09:25:31.106Z</lastmod>
-  </url>
-  <url>
-    <loc>https://iAbhyuday.github.io/iabhyuday.github.io/posts/differentiable-sampling/index.html</loc>
-    <lastmod>2026-10-21T09:25:31.107Z</lastmod>
+    <loc>https://iAbhyuday.github.io/iabhyuday.github.io/index.html</loc>
+    <lastmod>2026-10-21T09:30:45.401Z</lastmod>
   </url>
   <url>
     <loc>https://iAbhyuday.github.io/iabhyuday.github.io/posts/welcome/index.html</loc>
-    <lastmod>2026-10-21T09:25:31.108Z</lastmod>
+    <lastmod>2026-10-21T09:30:45.403Z</lastmod>
   </url>
   <url>
-    <loc>https://iAbhyuday.github.io/iabhyuday.github.io/index.html</loc>
-    <lastmod>2026-10-21T09:25:31.106Z</lastmod>
+    <loc>https://iAbhyuday.github.io/iabhyuday.github.io/posts/differentiable-sampling/index.html</loc>
+    <lastmod>2026-10-21T09:30:45.402Z</lastmod>
   </url>
   <url>
     <loc>https://iAbhyuday.github.io/iabhyuday.github.io/posts/how-a-gpu-works/index.html</loc>
-    <lastmod>2026-10-21T09:25:31.107Z</lastmod>
+    <lastmod>2026-10-21T09:30:45.402Z</lastmod>
   </url>
   <url>
     <loc>https://iAbhyuday.github.io/iabhyuday.github.io/posts/post-with-code/index.html</loc>
-    <lastmod>2026-10-21T09:25:31.108Z</lastmod>
+    <lastmod>2026-10-21T09:30:45.403Z</lastmod>
+  </url>
+  <url>
+    <loc>https://iAbhyuday.github.io/iabhyuday.github.io/about.html</loc>
+    <lastmod>2026-10-21T09:30:45.401Z</lastmod>
   </url>
 </urlset>
