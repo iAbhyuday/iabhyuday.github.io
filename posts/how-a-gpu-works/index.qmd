@@ -18,12 +18,6 @@ Every time we call `model(x)` in PyTorch, billions of multiply-adds run on a GPU
 
 In this blog post, we'll open the box. We'll use NVIDIA's **H100** as our running example and build up a mental model one idea at a time. Each section answers *what* a part is, *why* it exists, and *how* it connects to the parts before it. Every figure is a small animation you can pause, restart, and in some cases play with.
 
-Here are the numbers we'll make sense of along the way:
-
-::: gpu-specs
-[**132** SMs]{} [**16,896** CUDA cores]{} [**528** Tensor Cores]{} [**50 MB** L2 cache]{} [**80 GB** HBM3 · **3.35 TB/s**]{} [**989** TFLOPS BF16]{}
-:::
-
 By the end, words like **SM**, **warp**, **Tensor Core** and **memory-bound** should feel concrete, along with the jargon around them.
 
 ## CPU vs GPU: what a "core" really means
@@ -99,6 +93,22 @@ Three parts matter here.
 **L2 cache (50 MB).** A shared pantry in the middle of the chip. Every SM can read from it, and it's much faster to reach than off-chip memory.
 
 **HBM3 (80 GB).** High Bandwidth Memory: five stacks of DRAM chips sitting right next to the die. This is where your model weights, activations and KV cache live. It's big, but it's off the die, so it's the slowest tier.
+
+Put together, this is what NVIDIA prints on the H100's spec sheet. Each number gets explained somewhere in this post; tap one to jump there.
+
+```{=html}
+<nav class="gpu-specs-card" aria-label="H100 SXM5 by the numbers">
+  <div class="gsc-head">H100 SXM5 by the numbers</div>
+  <div class="gsc-grid">
+    <a class="gsc-tile" href="#inside-one-sm"><b>132</b><span>SMs</span><small>Inside one SM</small></a>
+    <a class="gsc-tile" href="#threads-warps-and-lanes-who-runs-where"><b>16,896</b><span>CUDA cores</span><small>Threads, warps and lanes</small></a>
+    <a class="gsc-tile" href="#cuda-cores-vs-tensor-cores-fma-vs-mma"><b>528</b><span>Tensor Cores</span><small>CUDA vs Tensor Cores</small></a>
+    <a class="gsc-tile" href="#the-memory-hierarchy"><b>50 MB</b><span>L2 cache</span><small>The memory hierarchy</small></a>
+    <a class="gsc-tile" href="#memory-bandwidth-vs-flops-the-roofline"><b>3.35 TB/s</b><span>from 80 GB of HBM3</span><small>The roofline</small></a>
+    <a class="gsc-tile" href="#memory-bandwidth-vs-flops-the-roofline"><b>989</b><span>TFLOPS in BF16</span><small>The roofline</small></a>
+  </div>
+</nav>
+```
 
 ::: callout-tip
 ## Think of it as
