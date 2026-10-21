@@ -1,14 +1,17 @@
 /*-- scss:defaults --*/
-// Distill-style typography on top of darkly (dark).
-$web-font-path: false;
-$font-family-sans-serif: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Oxygen, Ubuntu, Cantarell, "Fira Sans", "Droid Sans", "Helvetica Neue", Arial, sans-serif;
-$headings-font-family: $font-family-sans-serif;
-// Soothing: deep blue-charcoal instead of black, text a step below white.
-$body-bg: #1b1e22;
-$body-color: #d3d7db;
-$headings-color: #e9ecee;
-$link-color: #88bfb7;
-$code-color: #d3d7db;
-$navbar-bg: #1b1e22;
-$navbar-fg: #9ba2a9;
-$navbar-hl: #e9ecee;
+// Evening ink: warm charcoal ground, soft light text, muted sage accent.
+// Source Serif 4 for reading and headings, Source Sans 3 for UI, Source Code Pro for code.
+$web-font-path: "https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;1,8..60,400;1,8..60,600&family=Source+Sans+3:ital,wght@0,300;0,400;0,600;0,700;1,400&family=Source+Code+Pro:wght@400;500&display=swap";
+$font-family-sans-serif: "Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+$font-family-base: "Source Serif 4", Georgia, "Times New Roman", serif;
+$font-family-monospace: "Source Code Pro", SFMono-Regular, Menlo, Consolas, monospace;
+$headings-font-family: "Source Serif 4", Georgia, serif;
+$headings-font-weight: 600;
+$body-bg: #1F2124;
+$body-color: #C8CCD0;
+$headings-color: #DEE1E4;
+$link-color: #8DBFAF;
+$code-color: #C8CCD0;
+$navbar-bg: #1F2124;
+$navbar-fg: #949AA0;
+$navbar-hl: #DEE1E4;
