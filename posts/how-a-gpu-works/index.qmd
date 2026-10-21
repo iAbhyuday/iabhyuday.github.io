@@ -30,12 +30,12 @@ A CPU core is a complete, independent processor. It fetches its own instructions
 
 -   **Branch prediction** guesses the outcome of every `if` before it's known, so the core never waits to find out.
 -   **Out-of-order execution** keeps hundreds of instructions in flight and runs whichever ones are ready, so one slow instruction doesn't stall the rest.
--   **Large caches** (a couple of megabytes per core, plus a big shared L3) mean most memory reads come back in a few cycles.
+-   **Large caches** (a couple of megabytes per core, plus a big shared L3 cache) mean most memory reads come back in a few cycles.
 -   **A high clock**, around 3–5 GHz.
 
 All of that serves one goal: **low latency**. Finish *this* task as soon as possible.
 
-Inside a modern CPU core there *is* a small amount of parallel math: **SIMD** units that apply one instruction to several numbers at once. With AVX-512, a core has two units that are each 16 FP32 numbers wide, so 32 **lanes** in total.
+Inside a modern CPU core there *is* a small amount of parallel math: **SIMD** units that apply one instruction to several numbers at once. With AVX-512 (Intel's and AMD's widest SIMD instructions), a core has two units that are each 16 FP32 numbers wide (FP32 is the standard 32-bit decimal number), so 32 **lanes** in total.
 
 ### What a "CUDA core" is
 
@@ -66,7 +66,7 @@ Two lessons come out of Figure 1.
 
 **The GPU wins on independent work, and mostly by scale.** On plain FP32 math, one SM is only about 2× one CPU core. The big gap comes from having 132 SMs, from hiding memory waits cheaply instead of avoiding them, and from dedicated matrix units called Tensor Cores. Each of those gets its own section below.
 
-Put together, an H100 does roughly 5× the FP32 throughput of a 64-core server CPU's vector units, and roughly 80× once its Tensor Cores run BF16.
+Put together, an H100 does roughly 5× the FP32 throughput of a 64-core server CPU's vector units, and roughly 80× once its Tensor Cores run on BF16, a 16-bit number format we'll meet in the Tensor Core section.
 
 ::: callout-tip
 ## Think of it as
@@ -92,7 +92,7 @@ Three parts matter here.
 
 **L2 cache (50 MB).** A shared pantry in the middle of the chip. Every SM can read from it, and it's much faster to reach than off-chip memory.
 
-**HBM3 (80 GB).** High Bandwidth Memory: five stacks of DRAM chips sitting right next to the die. This is where your model weights, activations and KV cache live. It's big, but it's off the die, so it's the slowest tier.
+**HBM3 (80 GB).** High Bandwidth Memory: five stacks of DRAM, the same kind of memory chip as a PC's RAM, sitting right next to the die. This is where your model weights, activations and KV cache (the attention data an LLM keeps while generating text) live. It's big, but it's off the die, so it's the slowest tier.
 
 Put together, this is what NVIDIA prints on the H100's spec sheet. Each number gets explained somewhere in this post; tap one to jump there.
 
@@ -154,7 +154,7 @@ An H100 SM is split into **four sub-partitions** (NVIDIA's whitepapers call them
 
 -   a **warp scheduler**, which decides what runs next,
 -   a **register file** of 64 KB, the fastest storage on the chip,
--   **32 FP32 CUDA cores**, plus 16 INT32 and 16 FP64 units,
+-   **32 FP32 CUDA cores**, plus 16 INT32 units (whole-number math, like loop counters and addresses) and 16 FP64 units (64-bit, double-precision decimals),
 -   **one Tensor Core**, a dedicated matrix-multiply engine.
 
 All four sub-partitions share a 256 KB block of on-chip memory that acts as **L1 cache** and **shared memory** (more on the difference later), plus the **TMA** (Tensor Memory Accelerator), a copy engine that moves whole tiles of data from global memory into shared memory in the background.
@@ -204,7 +204,7 @@ Because a warp shares one instruction, branches cost something. If threads in th
 ::: callout-note
 ## Not every unit is 32 lanes wide
 
-FP32 lines up perfectly: 32 threads, 32 units. Other instructions don't. A sub-partition has 16 FP64 units, so a warp's FP64 instruction takes **two passes**. Special functions like `sin` and `exp` run on a handful of SFUs and take several cycles. And there's only **one** Tensor Core per sub-partition, so the whole warp feeds it together, each thread holding a small piece of the matrices in its registers.
+FP32 lines up perfectly: 32 threads, 32 units. Other instructions don't. A sub-partition has 16 FP64 units, so a warp's FP64 instruction takes **two passes**. Special functions like `sin`, `exp` and square root run on a few dedicated **special function units** (4 per sub-partition), so one warp's instruction takes several cycles. And there's only **one** Tensor Core per sub-partition, so the whole warp feeds it together, each thread holding a small piece of the matrices in its registers.
 :::
 
 ::: callout-tip
@@ -249,7 +249,15 @@ Here's the difference in action: both sides compute the same 16×16 output tile 
 </figure>
 ```
 
-That gap is why the H100's peak numbers look so different depending on which unit you use:
+That gap is why the H100's peak numbers look so different depending on which unit you use and which number format it works in.
+
+::: callout-note
+## Number formats
+
+Each format is a trade-off between precision and speed. **FP64** uses 64 bits per number (scientific computing). **FP32** uses 32 bits, the everyday default. **FP16** and **BF16** use 16 bits; BF16 keeps FP32's range with less precision, which suits neural networks. **FP8** uses just 8 bits. **TF32** is a Tensor Core trick: FP32's range with roughly FP16's precision. Fewer bits per number means more numbers per clock: on the Tensor Cores, each step from TF32 to BF16 to FP8 doubles the peak.
+:::
+
+The peaks below are **dense**: with no special handling of zeros in the matrices. (NVIDIA also quotes "sparse" figures that are twice as high.)
 
 | Unit         | Format      | Peak TFLOPS (dense) |
 |--------------|-------------|--------------------:|
@@ -310,7 +318,7 @@ We now know where the math happens and why the SM juggles so many warps. The har
 
 Two pairs of terms are worth separating clearly.
 
-**SRAM vs DRAM.** These are two ways of building memory. **SRAM** stores each bit in a small circuit of about six transistors. It's fast and needs no refreshing, but it takes a lot of area, so you can only fit tens of megabytes on a chip. **DRAM** stores each bit as charge in one tiny capacitor. It's far denser, so you get gigabytes, but it's slower and must be refreshed constantly. **HBM** is DRAM stacked vertically and wired to the GPU through thousands of connections in a silicon interposer, which is how it reaches 3.35 TB/s.
+**SRAM vs DRAM.** These are two ways of building memory. **SRAM** stores each bit in a small circuit of about six transistors. It's fast and needs no refreshing, but it takes a lot of area, so you can only fit tens of megabytes on a chip. **DRAM** stores each bit as charge in one tiny capacitor. It's far denser, so you get gigabytes, but it's slower and must be refreshed constantly. **HBM** is DRAM stacked vertically and wired to the GPU through thousands of connections in a silicon interposer (a thin slab of silicon that both the GPU and the memory sit on), which is how it reaches 3.35 TB/s.
 
 **Cache vs shared memory.** These live in the *same* 256 KB of SRAM in each SM. The difference is who's in charge. A **cache** (L1, L2) is managed by hardware: it keeps recently used data and guesses what you'll need. **Shared memory** is managed by you: your kernel explicitly copies a tile of data in, and every thread in the block can read it. Shared memory is how a block of threads *cooperates*.
 
@@ -437,7 +445,7 @@ Now every concept from this post has a job. Each box below is made of the boxes 
 </figure>
 ```
 
-This is what libraries like cuBLAS and CUTLASS do when you call `torch.matmul`. And **FlashAttention** is this same pattern applied to attention: it tiles $Q$, $K$ and $V$ through shared memory so the large $N \times N$ attention matrix never has to be written to HBM at all.
+This is what NVIDIA's matrix-multiply libraries, cuBLAS and CUTLASS, do when you call `torch.matmul`. And **FlashAttention** is this same pattern applied to attention: it tiles $Q$, $K$ and $V$ through shared memory so the large $N \times N$ attention matrix never has to be written to HBM at all.
 
 ## Cheat sheet
 
