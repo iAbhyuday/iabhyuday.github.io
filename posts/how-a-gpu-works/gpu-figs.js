@@ -450,6 +450,9 @@ function drawMatmul(t){
 }
 
 // ---------- mounting ----------
+// Base pace per figure (1 = original speed). Chosen so each event can be
+// followed by eye: a block dispatch, one scheduler issue, one k-step.
+const PACE = {chip:0.35, sm:0.45, threads:0.55, warps:0.4, cores:0.5, memory:0.6, roofline:0.6, matmul:0.5};
 const DRAW = {chip:drawChip, sm:drawSM, threads:drawMapping, warps:drawWarps, cores:drawCores, memory:drawMemory, roofline:drawRoof, matmul:drawMatmul};
 const reduced = window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
 const figs = [];
@@ -482,7 +485,7 @@ function el(tag, attrs, html){ const e=document.createElement(tag); for(const k 
 
 function mount(fig){
   const id = fig.dataset.fig, draw = DRAW[id]; if (!draw) return;
-  const st = {fig, draw, t: reduced?3:0, playing: !reduced, visible: false, canvas:null, theme:null};
+  const st = {fig, draw, t: reduced?3:0, playing: !reduced, visible: false, canvas:null, theme:null, pace: PACE[id]||0.5, speed: 1};
   const scroll = el('div',{class:'gf-scroll'}), boxEl = el('div',{class:'gf-box'});
   const cv = el('canvas',{role:'img','aria-label':fig.getAttribute('aria-label')||'Animated diagram'});
   boxEl.appendChild(cv); scroll.appendChild(boxEl); st.canvas = cv;
@@ -521,6 +524,10 @@ function mount(fig){
   play.addEventListener('click',()=>{ st.playing=!st.playing; sync(); });
   restart.addEventListener('click',()=>{ st.t=0; st.playing=true; sync(); });
   sync(); bar.appendChild(play); bar.appendChild(restart);
+  const sp = el('span',{class:'gf-speed',role:'group','aria-label':'Animation speed'});
+  sp.appendChild(el('span',{class:'gf-speed-label'},'Speed'));
+  const speedBtns = [0.5,1,2].map(v=>{ const b=el('button',{class:'gf-link',type:'button','aria-pressed':String(v===1)}, v+'×'); b.addEventListener('click',()=>{ st.speed=v; speedBtns.forEach(x=>x.setAttribute('aria-pressed', String(x===b))); }); sp.appendChild(b); return b; });
+  bar.appendChild(sp);
   const firstCtl = fig.querySelector('.gf-ctl');
   fig.insertBefore(bar, firstCtl || cap);
 
@@ -555,7 +562,7 @@ function init(){
   let last = performance.now();
   function frame(now){
     const dt = Math.min(.1,(now-last)/1000); last = now;
-    for (const st of figs) { if (!st.visible) continue; if (st.playing) st.t += dt; render(st); }
+    for (const st of figs) { if (!st.visible) continue; if (st.playing) st.t += dt * st.pace * st.speed; render(st); }
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
