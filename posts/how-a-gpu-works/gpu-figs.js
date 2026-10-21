@@ -18,10 +18,11 @@ const lerp=(a,b,u)=>a+(b-a)*u, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const ease=u=>{u=clamp(u,0,1);return u<.5?2*u*u:1-Math.pow(-2*u+2,2)/2;};
 function hash(n){ n=(n^61)^(n>>>16); n=n+(n<<3); n=n^(n>>>4); n=Math.imul(n,0x27d4eb2d); n=n^(n>>>15); return (n>>>0)/4294967296; }
 function rr(x,y,w,h,r){ ctx.beginPath(); if (ctx.roundRect) ctx.roundRect(x,y,w,h,r); else ctx.rect(x,y,w,h); }
-function box(x,y,w,h,o={}){ rr(x,y,w,h,o.r ?? 5); if(o.fill){ctx.fillStyle=o.fill;ctx.fill();} if(o.stroke){ctx.lineWidth=o.lw||1;ctx.strokeStyle=o.stroke; if(o.dash) ctx.setLineDash(o.dash); ctx.stroke(); ctx.setLineDash([]);} }
+function box(x,y,w,h,o={}){ rr(x,y,w,h,o.r ?? 5); if(o.fill){ctx.fillStyle=o.fill;ctx.fill();} if(o.stroke){ctx.lineWidth=Math.min(o.lw||1,1.5);ctx.strokeStyle=o.stroke; if(o.dash) ctx.setLineDash(o.dash); ctx.stroke(); ctx.setLineDash([]);} }
 function txt(s,x,y,o={}){
-  const size = o.size||14;
-  ctx.font = `${o.weight||400} ${size}px ${FONTS[o.font||'body']}`;
+  const size = (o.size||14) * (o.size>=15 ? 0.93 : 1);
+  const weight = Math.min(o.weight||400, 600);
+  ctx.font = `${weight} ${size}px ${FONTS[o.font||'body']}`;
   ctx.fillStyle = o.color || C.ink; ctx.textAlign = o.align||'left'; ctx.textBaseline = 'alphabetic';
   ctx.fillText(s,x,y);
 }
@@ -463,6 +464,15 @@ function isLightBg(){
   }
   return false;
 }
+function pageBg(){
+  let el = document.body;
+  while (el) {
+    const m = (getComputedStyle(el).backgroundColor||'').match(/rgba?\(([^)]+)\)/);
+    if (m) { const v = m[1].split(',').map(parseFloat); if (v.length < 4 || v[3] > 0.5) return '#'+v.slice(0,3).map(x=>Math.round(x).toString(16).padStart(2,'0')).join(''); }
+    el = el.parentElement;
+  }
+  return null;
+}
 function readTheme(el){
   const s = getComputedStyle(el), o = {};
   for (const k of ['surface','die','sm','line','ink','muted','cuda','tensor','warp','mem','idle']) o[k] = s.getPropertyValue('--g-'+k).trim();
@@ -503,15 +513,20 @@ function mount(fig){
   }
 
   const bar = el('div',{class:'gf-bar'});
-  const play = el('button',{class:'gf-btn primary',type:'button'}, st.playing?'Pause':'Play');
-  const restart = el('button',{class:'gf-btn',type:'button'}, 'Restart');
-  play.addEventListener('click',()=>{ st.playing=!st.playing; play.textContent=st.playing?'Pause':'Play'; });
-  restart.addEventListener('click',()=>{ st.t=0; st.playing=true; play.textContent='Pause'; });
-  bar.appendChild(play); bar.appendChild(restart);
-  fig.insertBefore(bar, cap);
+  const ICON_PAUSE = '<svg viewBox="0 0 10 10" aria-hidden="true"><rect x="1.5" y="1" width="2.4" height="8"/><rect x="6.1" y="1" width="2.4" height="8"/></svg>';
+  const ICON_PLAY = '<svg viewBox="0 0 10 10" aria-hidden="true"><path d="M2 1 L9 5 L2 9 Z"/></svg>';
+  const play = el('button',{class:'gf-play',type:'button'});
+  const sync = () => { play.innerHTML = st.playing ? ICON_PAUSE : ICON_PLAY; play.setAttribute('aria-label', st.playing ? 'Pause animation' : 'Play animation'); };
+  const restart = el('button',{class:'gf-link',type:'button'}, '↺ Restart');
+  play.addEventListener('click',()=>{ st.playing=!st.playing; sync(); });
+  restart.addEventListener('click',()=>{ st.t=0; st.playing=true; sync(); });
+  sync(); bar.appendChild(play); bar.appendChild(restart);
+  const firstCtl = fig.querySelector('.gf-ctl');
+  fig.insertBefore(bar, firstCtl || cap);
 
   if (isLightBg()) fig.classList.add('light');
   st.theme = readTheme(fig);
+  const pg = pageBg(); if (pg) st.theme.surface = pg;
   figs.push(st);
 }
 
@@ -528,9 +543,9 @@ function render(st){
 }
 
 function init(){
-  const bodyFont = getComputedStyle(document.body).fontFamily || 'system-ui, sans-serif';
+  const bodyFont = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
   FONTS.body = bodyFont; FONTS.display = bodyFont;
-  FONTS.mono = 'SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace';
+  FONTS.mono = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
   document.querySelectorAll('figure.gpu-fig[data-fig]').forEach(mount);
   if ('IntersectionObserver' in window) {
     const io = new IntersectionObserver(es => es.forEach(e => { const st = figs.find(f=>f.fig===e.target); if (st) st.visible = e.isIntersecting; }), {rootMargin:'100px'});
