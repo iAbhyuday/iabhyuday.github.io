@@ -1,0 +1,1178 @@
+<!DOCTYPE html>
+<html xmlns="http://www.w3.org/1999/xhtml" lang="en" xml:lang="en"><head>
+
+<meta charset="utf-8">
+<meta name="generator" content="quarto-1.10.19">
+
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=yes">
+
+<meta name="author" content="Abhyuday">
+<meta name="dcterms.date" content="2026-10-21">
+<meta name="description" content="SMs, warps, lanes, CUDA cores, Tensor Cores, HBM, SRAM, bandwidth and FLOPs, explained with animations and built up one idea at a time.">
+
+<title>How a GPU Works: A Visual Tour of the H100 – iabhyuday</title>
+<style>
+/* Default styles provided by pandoc.
+** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
+*/
+span.smallcaps{font-variant: small-caps;}
+div.columns{display: flex; gap: 1.5em;}
+div.column{flex: auto;}
+@media screen {
+div.columns{gap: min(4vw, 1.5em);}
+div.column{overflow-x: auto;}
+}
+div.hanging-indent{margin-left: 1.5em; text-indent: -1.5em;}
+ul.task-list{list-style: none;}
+ul.task-list li input[type="checkbox"] {
+  width: 0.8em;
+  margin: 0 0.8em 0.2em -1em; /* quarto-specific, see https://github.com/quarto-dev/quarto-cli/issues/4556 */ 
+  vertical-align: middle;
+}
+/* CSS for syntax highlighting */
+html { -webkit-text-size-adjust: 100%; }
+pre > code.sourceCode { white-space: pre; position: relative; }
+pre > code.sourceCode > span { display: inline-block; line-height: 1.25; }
+pre > code.sourceCode > span:empty { height: 1.2em; }
+.sourceCode { overflow: visible; }
+code.sourceCode > span { color: inherit; text-decoration: inherit; }
+div.sourceCode { margin: 1em 0; }
+pre.sourceCode { margin: 0; }
+@media screen {
+div.sourceCode { overflow: auto; }
+}
+@media print {
+pre > code.sourceCode { white-space: pre-wrap; }
+pre > code.sourceCode > span { text-indent: -5em; padding-left: 5em; }
+}
+pre.numberSource code
+  { counter-reset: source-line 0; }
+pre.numberSource code > span
+  { position: relative; left: -4em; counter-increment: source-line; }
+pre.numberSource code > span > a:first-child::before
+  { content: counter(source-line);
+    position: relative; left: -1em; text-align: right; vertical-align: baseline;
+    border: none; display: inline-block;
+    -webkit-touch-callout: none; -webkit-user-select: none;
+    -khtml-user-select: none; -moz-user-select: none;
+    -ms-user-select: none; user-select: none;
+    padding: 0 4px; width: 4em;
+  }
+pre.numberSource { margin-left: 3em;  padding-left: 4px; }
+div.sourceCode
+  {   }
+@media screen {
+pre > code.sourceCode > span > a:first-child::before { text-decoration: underline; }
+}
+</style>
+
+
+<script src="../../site_libs/quarto-nav/quarto-nav.js"></script>
+<script src="../../site_libs/quarto-nav/headroom.min.js"></script>
+<script src="../../site_libs/clipboard/clipboard.min.js"></script>
+<script src="../../site_libs/quarto-search/autocomplete.umd.js"></script>
+<script src="../../site_libs/quarto-search/fuse.min.js"></script>
+<script src="../../site_libs/quarto-search/quarto-search.js"></script>
+<meta name="quarto:offset" content="../../">
+<script src="../../site_libs/quarto-html/quarto.js" type="module"></script>
+<script src="../../site_libs/quarto-html/tabsets/tabsets.js" type="module"></script>
+<script src="../../site_libs/quarto-html/popper.min.js"></script>
+<script src="../../site_libs/quarto-html/tippy.umd.min.js"></script>
+<script src="../../site_libs/quarto-html/anchor.min.js"></script>
+<link href="../../site_libs/quarto-html/tippy.css" rel="stylesheet">
+<link href="../../site_libs/quarto-html/quarto-syntax-highlighting-dark-b626d73c4c936ccc3cb08be7d45d1df6.css" rel="stylesheet" id="quarto-text-highlighting-styles">
+<script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
+<link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
+<link href="../../site_libs/bootstrap/bootstrap-453b7704eb17eeafb0d2d8952f31b574.min.css" rel="stylesheet" append-hash="true" id="quarto-bootstrap" data-mode="dark">
+<script id="quarto-search-options" type="application/json">{
+  "location": "navbar",
+  "copy-button": false,
+  "collapse-after": 3,
+  "panel-placement": "end",
+  "type": "overlay",
+  "limit": 50,
+  "keyboard-shortcut": [
+    "f",
+    "/",
+    "s"
+  ],
+  "show-item-context": false,
+  "language": {
+    "search-no-results-text": "No results",
+    "search-matching-documents-text": "matching documents",
+    "search-copy-link-title": "Copy link to search",
+    "search-hide-matches-text": "Hide additional matches",
+    "search-more-match-text": "more match in this document",
+    "search-more-matches-text": "more matches in this document",
+    "search-clear-button-title": "Clear",
+    "search-text-placeholder": "",
+    "search-detached-cancel-button-title": "Cancel",
+    "search-submit-button-title": "Submit",
+    "search-label": "Search"
+  }
+}</script>
+
+  <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
+  <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js" type="text/javascript"></script>
+
+<script type="text/javascript">
+const typesetMath = (el) => {
+  if (window.MathJax) {
+    // MathJax Typeset
+    window.MathJax.typeset([el]);
+  } else if (window.katex) {
+    // KaTeX Render
+    var mathElements = el.getElementsByClassName("math");
+    var macros = [];
+    for (var i = 0; i < mathElements.length; i++) {
+      var texText = mathElements[i].firstChild;
+      if (mathElements[i].tagName == "SPAN" && texText && texText.data) {
+        window.katex.render(texText.data, mathElements[i], {
+          displayMode: mathElements[i].classList.contains('display'),
+          throwOnError: false,
+          macros: macros,
+          fleqn: false
+        });
+      }
+    }
+  }
+}
+window.Quarto = {
+  typesetMath
+};
+</script>
+
+<link rel="stylesheet" href="../../styles.css">
+<link rel="stylesheet" href="gpu-figs.css">
+</head>
+
+<body class="nav-fixed quarto-light">
+
+<div id="quarto-search-results"></div>
+  <header id="quarto-header" class="headroom fixed-top quarto-banner">
+    <nav class="navbar navbar-expand-lg " data-bs-theme="dark">
+      <div class="navbar-container container-fluid">
+      <div class="navbar-brand-container mx-auto">
+    <a class="navbar-brand" href="../../index.html">
+    <span class="navbar-title">iabhyuday</span>
+    </a>
+  </div>
+            <div id="quarto-search" class="" title="Search"></div>
+          <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarCollapse" aria-controls="navbarCollapse" role="menu" aria-expanded="false" aria-label="Toggle navigation" onclick="if (window.quartoToggleHeadroom) { window.quartoToggleHeadroom(); }">
+  <span class="navbar-toggler-icon"></span>
+</button>
+          <div class="collapse navbar-collapse" id="navbarCollapse">
+            <ul class="navbar-nav navbar-nav-scroll ms-auto">
+  <li class="nav-item">
+    <a class="nav-link" href="../../about.html"> 
+<span class="menu-text">About</span></a>
+  </li>  
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://github.com/"> <i class="bi bi-github" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+  <li class="nav-item compact">
+    <a class="nav-link" href="https://twitter.com"> <i class="bi bi-twitter" role="img">
+</i> 
+<span class="menu-text"></span></a>
+  </li>  
+</ul>
+          </div> <!-- /navcollapse -->
+            <div class="quarto-navbar-tools">
+</div>
+      </div> <!-- /container-fluid -->
+    </nav>
+</header>
+<!-- content -->
+<header id="title-block-header" class="quarto-title-block default page-columns page-full">
+  <div class="quarto-title-banner page-columns page-full">
+    <div class="quarto-title column-body">
+      <h1 class="title">How a GPU Works: A Visual Tour of the H100</h1>
+                  <div>
+        <div class="description">
+          SMs, warps, lanes, CUDA cores, Tensor Cores, HBM, SRAM, bandwidth and FLOPs, explained with animations and built up one idea at a time.
+        </div>
+      </div>
+                          <div class="quarto-categories">
+                <div class="quarto-category">gpu</div>
+                <div class="quarto-category">deep-learning</div>
+                <div class="quarto-category">hardware</div>
+              </div>
+                  </div>
+  </div>
+    
+  
+  <div class="quarto-title-meta">
+
+      <div>
+      <div class="quarto-title-meta-heading">Author</div>
+      <div class="quarto-title-meta-contents">
+               <p>Abhyuday </p>
+            </div>
+    </div>
+      
+      <div>
+      <div class="quarto-title-meta-heading">Published</div>
+      <div class="quarto-title-meta-contents">
+        <p class="date">October 21, 2026</p>
+      </div>
+    </div>
+    
+      
+    </div>
+    
+  
+  </header><div id="quarto-content" class="quarto-container page-columns page-rows-contents page-layout-article page-navbar">
+<!-- sidebar -->
+<!-- margin-sidebar -->
+    <div id="quarto-margin-sidebar" class="sidebar margin-sidebar">
+        <nav id="TOC" role="doc-toc" class="toc-active">
+    <h2 id="toc-title">On this page</h2>
+   
+  <ul class="collapse">
+  <li><a href="#the-one-idea-behind-every-gpu" id="toc-the-one-idea-behind-every-gpu" class="nav-link active" data-scroll-target="#the-one-idea-behind-every-gpu">The one idea behind every GPU</a></li>
+  <li><a href="#the-chip-132-workshops-and-a-warehouse" id="toc-the-chip-132-workshops-and-a-warehouse" class="nav-link" data-scroll-target="#the-chip-132-workshops-and-a-warehouse">The chip: 132 workshops and a warehouse</a></li>
+  <li><a href="#how-your-code-gets-split-up" id="toc-how-your-code-gets-split-up" class="nav-link" data-scroll-target="#how-your-code-gets-split-up">How your code gets split up</a></li>
+  <li><a href="#inside-one-sm" id="toc-inside-one-sm" class="nav-link" data-scroll-target="#inside-one-sm">Inside one SM</a></li>
+  <li><a href="#threads-warps-and-lanes-who-runs-where" id="toc-threads-warps-and-lanes-who-runs-where" class="nav-link" data-scroll-target="#threads-warps-and-lanes-who-runs-where">Threads, warps and lanes: who runs where</a></li>
+  <li><a href="#why-so-many-warps-hiding-memory-latency" id="toc-why-so-many-warps-hiding-memory-latency" class="nav-link" data-scroll-target="#why-so-many-warps-hiding-memory-latency">Why so many warps? Hiding memory latency</a></li>
+  <li><a href="#cuda-cores-vs-tensor-cores-fma-vs-mma" id="toc-cuda-cores-vs-tensor-cores-fma-vs-mma" class="nav-link" data-scroll-target="#cuda-cores-vs-tensor-cores-fma-vs-mma">CUDA cores vs Tensor Cores: FMA vs MMA</a></li>
+  <li><a href="#the-memory-hierarchy" id="toc-the-memory-hierarchy" class="nav-link" data-scroll-target="#the-memory-hierarchy">The memory hierarchy</a></li>
+  <li><a href="#memory-bandwidth-vs-flops-the-roofline" id="toc-memory-bandwidth-vs-flops-the-roofline" class="nav-link" data-scroll-target="#memory-bandwidth-vs-flops-the-roofline">Memory bandwidth vs FLOPs: the roofline</a></li>
+  <li><a href="#putting-it-all-together-one-gemm" id="toc-putting-it-all-together-one-gemm" class="nav-link" data-scroll-target="#putting-it-all-together-one-gemm">Putting it all together: one GEMM</a></li>
+  <li><a href="#cheat-sheet" id="toc-cheat-sheet" class="nav-link" data-scroll-target="#cheat-sheet">Cheat sheet</a></li>
+  <li><a href="#further-reading" id="toc-further-reading" class="nav-link" data-scroll-target="#further-reading">Further reading</a></li>
+  </ul>
+</nav>
+    </div>
+<!-- main -->
+<main class="content quarto-banner-title-block page-columns page-full" id="quarto-document-content">
+
+
+
+
+
+<hr>
+<p>Every time we call <code>model(x)</code> in PyTorch, billions of multiply-adds run on a GPU in a few milliseconds. Most of us treat that GPU as a black box that makes things fast. That works until it doesn’t: until a training run is mysteriously slow, an inference server can’t keep up, or someone says <em>“this kernel is memory-bound”</em> and we nod without really knowing what it means.</p>
+<p>In this blog post, we’ll open the box. We’ll use NVIDIA’s <strong>H100</strong> as our running example and build up a mental model one idea at a time. Each section answers <em>what</em> a part is, <em>why</em> it exists, and <em>how</em> it connects to the parts before it. Every figure is a small animation you can pause, restart, and in some cases play with.</p>
+<div class="gpu-specs">
+<p><span><strong>132</strong> SMs</span> <span><strong>16,896</strong> CUDA cores</span> <span><strong>528</strong> Tensor Cores</span> <span><strong>50 MB</strong> L2 cache</span> <span><strong>80 GB</strong> HBM3 · <strong>3.35 TB/s</strong></span> <span><strong>989</strong> TFLOPS BF16</span></p>
+</div>
+<p>By the end, these words should feel concrete: <strong>SM, warp, lane, CUDA core, Tensor Core, HBM, SRAM, cache, shared memory, memory bandwidth, FLOPs</strong>, and the two acronyms you’ll see in every performance discussion, <strong>FMA</strong> and <strong>GEMM</strong>.</p>
+<section id="the-one-idea-behind-every-gpu" class="level2">
+<h2 class="anchored" data-anchor-id="the-one-idea-behind-every-gpu">The one idea behind every GPU</h2>
+<p>A CPU and a GPU are built for different jobs.</p>
+<ul>
+<li>A <strong>CPU</strong> has a handful of powerful cores. Each one is very good at running a single stream of instructions quickly, with large caches, branch prediction and other tricks to keep that one stream from ever waiting. It is optimised for <strong>latency</strong>: finish <em>this</em> task as soon as possible.</li>
+<li>A <strong>GPU</strong> has thousands of simple execution units. Any single one is slower than a CPU core, but together they finish an enormous amount of work per second. It is optimised for <strong>throughput</strong>: finish <em>all</em> the tasks as soon as possible.</li>
+</ul>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>A CPU is a few brilliant chefs who can cook anything. A GPU is a factory floor with thousands of line workers, each doing one simple step, all at once.</p>
+</div>
+</div>
+<p>Deep learning is a perfect fit for the factory. A matrix multiply is millions of independent multiply-adds that don’t depend on each other. Every design decision in the rest of this post exists to keep those thousands of workers busy.</p>
+</section>
+<section id="the-chip-132-workshops-and-a-warehouse" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="the-chip-132-workshops-and-a-warehouse">The chip: 132 workshops and a warehouse</h2>
+<p>Let’s start from the outside. An H100 is a single large piece of silicon, the <strong>GH100 die</strong>, sitting next to stacks of memory on the same package.</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="chip" aria-label="Animated diagram of the GH100 die with SMs, L2 cache and HBM stacks">
+<figcaption><b>Figure 1 · The chip.</b> Blue squares are <i>thread blocks</i> (chunks of your work). The GigaThread engine hands each one to an SM with free room, and that SM lights up teal while it runs. Copper dots are data streaming from the HBM stacks into the L2 cache, which every SM shares.</figcaption>
+</figure>
+<p>Three parts matter here.</p>
+<p><strong>Streaming Multiprocessors (SMs).</strong> The SM is the basic building block: the unit that gets copied over and over. The full GH100 die has 144 SMs arranged in 8 groups called GPCs (graphics processing clusters). A die this big almost always has a few manufacturing defects, so NVIDIA switches off the faulty SMs and sells the chip with <strong>132 enabled</strong>. That’s the dashed outlines in the figure.</p>
+<p><strong>L2 cache (50 MB).</strong> A shared stockroom in the middle of the chip. Every SM can read from it, and it’s much faster to reach than off-chip memory.</p>
+<p><strong>HBM3 (80 GB).</strong> High Bandwidth Memory: five stacks of DRAM chips sitting right next to the die. This is where your model weights, activations and KV cache live. It’s big, but it’s off the die, so it’s the slowest tier.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>A factory with 132 identical workshops (SMs), a shared stockroom in the middle (L2), and warehouses next door (HBM). A dispatcher hands out work orders (thread blocks) to any workshop with free space.</p>
+</div>
+</div>
+</section>
+<section id="how-your-code-gets-split-up" class="level2">
+<h2 class="anchored" data-anchor-id="how-your-code-gets-split-up">How your code gets split up</h2>
+<p>Before we look inside an SM, we need the vocabulary on the <em>software</em> side, because the hardware is designed around it.</p>
+<p>When you launch a GPU program (a <strong>kernel</strong>), you don’t write a loop over a million elements. You write the code for <em>one</em> element, and ask the GPU to run it a million times in parallel. Here’s the classic example, adding two vectors in CUDA:</p>
+<pre class="cuda"><code>__global__ void add(const float* a, const float* b, float* c, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;   // which element am I?
+    if (i &lt; n) c[i] = a[i] + b[i];
+}
+
+// launch 4096 blocks of 256 threads = 1,048,576 threads
+add&lt;&lt;&lt;4096, 256&gt;&gt;&gt;(a, b, c, n);</code></pre>
+<p>This gives us a hierarchy of three software terms:</p>
+<ul>
+<li><strong>Thread:</strong> one running copy of the kernel. It has its own variables and its own <code>threadIdx</code>.</li>
+<li><strong>Thread block:</strong> a group of up to 1,024 threads. A block always runs on a single SM, so its threads can cooperate through fast shared memory.</li>
+<li><strong>Grid:</strong> all the blocks of one kernel launch.</li>
+</ul>
+<p>The GPU schedules <strong>blocks onto SMs</strong>. That’s exactly what Figure 1 showed: blue squares (blocks) flying to SMs. An SM can host several blocks at once, as long as it has room.</p>
+</section>
+<section id="inside-one-sm" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="inside-one-sm">Inside one SM</h2>
+<p>Now let’s zoom into a single SM. Everything that actually <em>computes</em> lives here.</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="sm" aria-label="Animated diagram of one SM with four sub-partitions">
+<figcaption><b>Figure 2 · One SM.</b> Each of the four sub-partitions has its own warp scheduler. Every tick, each scheduler issues one instruction. When it's a regular FP32 instruction, all 32 CUDA cores flash together (teal). When it's a matrix instruction, the Tensor Core flashes (violet). Copper dots move data from shared memory into registers.</figcaption>
+</figure>
+<p>An H100 SM is split into <strong>four sub-partitions</strong> (NVIDIA’s whitepapers call them <em>processing blocks</em>; profilers call them <em>SMSPs</em>). Each sub-partition has:</p>
+<ul>
+<li>a <strong>warp scheduler</strong>, which decides what runs next,</li>
+<li>a <strong>register file</strong> of 64 KB, the fastest storage on the chip,</li>
+<li><strong>32 FP32 CUDA cores</strong>, plus 16 INT32 and 16 FP64 units,</li>
+<li><strong>one Tensor Core</strong>, a dedicated matrix-multiply engine.</li>
+</ul>
+<p>All four sub-partitions share a 256 KB block of on-chip memory that acts as <strong>L1 cache</strong> and <strong>shared memory</strong> (more on the difference later), plus the <strong>TMA</strong> (Tensor Memory Accelerator), a copy engine that moves whole tiles of data from global memory into shared memory in the background.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Per SM</th>
+<th>H100</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FP32 CUDA cores</td>
+<td>128 (32 per sub-partition)</td>
+</tr>
+<tr class="even">
+<td>Tensor Cores</td>
+<td>4 (1 per sub-partition)</td>
+</tr>
+<tr class="odd">
+<td>Register file</td>
+<td>256 KB (65,536 × 32-bit)</td>
+</tr>
+<tr class="even">
+<td>L1 + shared memory</td>
+<td>256 KB (up to 228 KB shared)</td>
+</tr>
+<tr class="odd">
+<td>Max resident threads</td>
+<td>2,048 (64 warps)</td>
+</tr>
+</tbody>
+</table>
+<p>One rule to keep in mind: <strong>cores can only compute on values in registers.</strong> Everything else, whether shared memory, L2 or HBM, must be loaded into registers first. That rule drives the whole memory story later on.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>A workshop with four workbenches. Each bench has a foreman (scheduler), a tray of parts at hand (registers), 32 workers who always make the same move together (CUDA cores), and one specialised machine (Tensor Core). One supply shelf serves all four benches (shared memory).</p>
+</div>
+</div>
+</section>
+<section id="threads-warps-and-lanes-who-runs-where" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="threads-warps-and-lanes-who-runs-where">Threads, warps and lanes: who runs where</h2>
+<p>This is the part that confuses most people, including me for a long time. We have <em>software</em> things (threads, blocks) and <em>hardware</em> things (SMs, sub-partitions, cores). Two words connect them: <strong>warp</strong> and <strong>lane</strong>.</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="threads" aria-label="Animation mapping 256 threads to 8 warps, 4 sub-partitions and 32 lanes">
+<figcaption><b>Figure 3 · Threads → warps → lanes.</b> A block of 256 threads runs on one SM in three steps. Follow the copper thread: thread 52 is in warp 1 at lane 20. It always runs on lane 20 of sub-partition 1, but only on the cycles when its warp is picked.</figcaption>
+</figure>
+<p><strong>Step 1: threads become warps.</strong> The SM cuts every block into groups of <strong>32 consecutive threads</strong>, called <strong>warps</strong>. Threads 0–31 form warp 0, threads 32–63 form warp 1, and so on. A warp is the unit the hardware actually schedules: all 32 threads in a warp execute the <strong>same instruction at the same time</strong>, each on its own data. NVIDIA calls this SIMT, <em>single instruction, multiple threads</em>.</p>
+<p>A thread’s position inside its warp, from 0 to 31, is its <strong>lane</strong>:</p>
+<pre class="cuda"><code>int warp = threadIdx.x / 32;   // thread 52 → warp 1
+int lane = threadIdx.x % 32;   // thread 52 → lane 20</code></pre>
+<p><strong>Step 2: warps go to sub-partitions.</strong> Each warp is assigned to one of the four sub-partitions and stays there for its whole life. Its registers are allocated in that sub-partition’s register file. Our 8 warps get spread 2 per sub-partition.</p>
+<p><strong>Step 3: warps take turns on the lanes.</strong> Each sub-partition’s 32 FP32 CUDA cores are the 32 <strong>lanes</strong> of its execution unit. When the scheduler issues an FP32 instruction for a warp, the thread in lane <em>i</em> runs on lane <em>i</em>. On the next cycle, the scheduler may pick a <em>different</em> warp, and that warp uses the same 32 lanes.</p>
+<p>So <strong>a CUDA core is not “a thread’s core”</strong>. Up to 16 warps (512 threads) can live on one sub-partition, all sharing the same 32 lanes. A thread’s state isn’t stored in a core; it’s stored in the <strong>register file</strong>. That’s why switching between warps is free: nothing has to be saved or restored, the scheduler just points the lanes at a different warp’s registers.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Not every unit is 32 lanes wide
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>FP32 lines up perfectly: 32 threads, 32 units. Other instructions don’t. A sub-partition has 16 FP64 units, so a warp’s FP64 instruction takes <strong>two passes</strong>. Special functions like <code>sin</code> and <code>exp</code> run on a handful of SFUs and take several cycles. And there’s only <strong>one</strong> Tensor Core per sub-partition, so the whole warp feeds it together, each thread holding a small piece of the matrices in its registers.</p>
+</div>
+</div>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Connect it to what you know
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>On a CPU, you can run 500 threads on an 8-core machine because the OS time-slices them. A GPU does the same thing, with two differences: it switches <strong>every clock cycle</strong> instead of every few milliseconds (because no state has to be saved), and it switches in <strong>bundles of 32 threads</strong> that always execute the same instruction.</p>
+<p>If you’ve used SIMD on a CPU, a warp instruction is like an AVX instruction that is 32 lanes wide. CUDA just lets you write the code from one lane’s point of view.</p>
+</div>
+</div>
+</section>
+<section id="why-so-many-warps-hiding-memory-latency" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="why-so-many-warps-hiding-memory-latency">Why so many warps? Hiding memory latency</h2>
+<p>Why would the hardware bother keeping 16 warps on a sub-partition when only one can run per cycle? Because of memory. A load from HBM takes <strong>hundreds of cycles</strong> to come back. If the scheduler had only one warp, it would sit idle for all of them.</p>
+<p>Try it below. Each warp in this model does two math instructions, then a load that stalls for 12 cycles (real HBM latency is closer to 500+, but 12 keeps it watchable).</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="warps" aria-label="Interactive simulation of a warp scheduler hiding memory latency">
+<figcaption><b>Figure 4 · Latency hiding.</b> Each row is a warp; its 32 bars are its threads. Red cells in the issue-slot strip are wasted cycles. With 1 or 2 warps the scheduler is mostly idle. Move the slider to 5 or more and the red disappears: while one warp waits on memory, another is ready to run.</figcaption>
+</figure>
+<p>The arithmetic is simple. One warp keeps the scheduler busy for 3 cycles out of every 15 (3 instructions + 12 waiting). To fill every cycle you need about <span class="math inline">\(15 \div 3 = 5\)</span> warps. With real HBM latencies, you need many more, which is why the H100 can keep up to 64 warps per SM.</p>
+<p>How many warps actually fit depends on how many registers and how much shared memory each thread uses. The fraction of the maximum you achieve is called <strong>occupancy</strong>.</p>
+<p>One more warp-level effect worth knowing: <strong>divergence</strong>. If threads in the same warp take different branches of an <code>if</code>, the warp runs <em>both</em> paths one after the other, with some lanes switched off each time. Those idle lanes are wasted work.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>A cook with several pots on the stove. While one simmers, stir another. With only one pot, the cook just stands there waiting.</p>
+</div>
+</div>
+</section>
+<section id="cuda-cores-vs-tensor-cores-fma-vs-mma" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="cuda-cores-vs-tensor-cores-fma-vs-mma">CUDA cores vs Tensor Cores: FMA vs MMA</h2>
+<p>Now for the units that do the math. Both kinds of core do the same basic thing, <em>multiply and add to a running total</em>. The difference is how much they do at once.</p>
+<p><strong>FMA (fused multiply-add)</strong> is one instruction that computes, for single numbers,</p>
+<p><span class="math display">\[
+d = a \times b + c
+\]</span></p>
+<p>“Fused” means the multiply and add happen as one step with a single rounding at the end, so it’s both faster and more accurate than two separate instructions. A <strong>CUDA core</strong> does one FMA per clock. A warp’s <code>FFMA</code> instruction does 32 of them at once, one per lane. A dot product is just a chain of FMAs:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb3-1"><a href="#cb3-1" aria-hidden="true" tabindex="-1"></a><span class="dt">float</span> sum <span class="op">=</span> <span class="dv">0</span><span class="op">;</span></span>
+<span id="cb3-2"><a href="#cb3-2" aria-hidden="true" tabindex="-1"></a><span class="cf">for</span> <span class="op">(</span><span class="dt">int</span> k <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> k <span class="op">&lt;</span> K<span class="op">;</span> k<span class="op">++)</span></span>
+<span id="cb3-3"><a href="#cb3-3" aria-hidden="true" tabindex="-1"></a>    sum <span class="op">=</span> a<span class="op">[</span>k<span class="op">]</span> <span class="op">*</span> b<span class="op">[</span>k<span class="op">]</span> <span class="op">+</span> sum<span class="op">;</span>   <span class="co">// one FMA per iteration</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><strong>MMA (matrix multiply-accumulate)</strong> is one instruction that computes, for small <strong>tiles</strong> of matrices,</p>
+<p><span class="math display">\[
+D = A \times B + C
+\]</span></p>
+<p>A <strong>Tensor Core</strong> executes MMAs. For example, the instruction <code>mma.sync.m16n8k16</code> multiplies a 16×16 tile by a 16×8 tile: that’s <span class="math inline">\(16 \times 8 \times 16 = 2{,}048\)</span> FMAs from a single warp instruction. Hopper adds an even larger form, <code>wgmma</code>, issued by a <strong>warpgroup</strong> of 4 warps (one in each sub-partition), which can read its operands straight from shared memory.</p>
+<p>Here’s the difference in action: both sides compute the same 16×16 output tile with <span class="math inline">\(K = 16\)</span>, which is 4,096 FMAs.</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="cores" aria-label="Race between 32 CUDA cores and one Tensor Core computing the same tile">
+<figcaption><b>Figure 5 · The race.</b> 32 CUDA cores do 32 FMAs per clock and need 128 clocks. One Tensor Core in the same sub-partition does 512 FP16 FMAs per clock and needs 8. Per SM, that's 128 vs 2,048 multiply-adds per clock: 16× more.</figcaption>
+</figure>
+<p>That gap is why the H100’s peak numbers look so different depending on which unit you use:</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Unit</th>
+<th>Format</th>
+<th style="text-align: right;">Peak TFLOPS (dense)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>CUDA cores</td>
+<td>FP64</td>
+<td style="text-align: right;">34</td>
+</tr>
+<tr class="even">
+<td>CUDA cores</td>
+<td>FP32</td>
+<td style="text-align: right;">67</td>
+</tr>
+<tr class="odd">
+<td>Tensor Cores</td>
+<td>TF32</td>
+<td style="text-align: right;">495</td>
+</tr>
+<tr class="even">
+<td>Tensor Cores</td>
+<td>BF16 / FP16</td>
+<td style="text-align: right;">989</td>
+</tr>
+<tr class="odd">
+<td>Tensor Cores</td>
+<td>FP8</td>
+<td style="text-align: right;">1,979</td>
+</tr>
+</tbody>
+</table>
+<p>Neural networks are mostly matrix multiplies, so Tensor Cores carry nearly all the FLOPs. CUDA cores still handle everything else: activations, softmax, layer norm, indexing and any element-wise work.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Counting FLOPs
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>One FMA counts as <strong>2 FLOPs</strong> (a multiply and an add). An <span class="math inline">\(M \times N \times K\)</span> matrix multiply has <span class="math inline">\(M \cdot N \cdot K\)</span> FMAs, so it costs <span class="math inline">\(2MNK\)</span> FLOPs. Note the capitalisation: <strong>FLOPs</strong> is a <em>count</em> of operations, <strong>FLOPS</strong> is a <em>rate</em> (per second).</p>
+</div>
+</div>
+</section>
+<section id="the-memory-hierarchy" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="the-memory-hierarchy">The memory hierarchy</h2>
+<p>We now know where the math happens. The harder problem is getting data <em>to</em> the math. An H100 has four tiers of memory, and the rule is the same as in any computer: <strong>the closer to the cores, the faster, smaller and more expensive.</strong></p>
+<figure class="gpu-fig column-body-outset figure" data-fig="memory" aria-label="Animation of request latency to registers, shared memory, L2 and HBM">
+<figcaption><b>Figure 6 · How long a trip takes.</b> Four requests leave the SM at the same moment. The register read is back almost instantly, shared memory after about 30 cycles, L2 after about 260, and HBM after about 600. The dashed line is the edge of the die.</figcaption>
+</figure>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 26%">
+<col style="width: 17%">
+<col style="width: 33%">
+<col style="width: 22%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Tier</th>
+<th>Size</th>
+<th style="text-align: right;">Latency (cycles, approx.)</th>
+<th>Built from</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Registers</td>
+<td>256 KB / SM</td>
+<td style="text-align: right;">~1</td>
+<td>SRAM, inside SM</td>
+</tr>
+<tr class="even">
+<td>Shared memory / L1</td>
+<td>256 KB / SM</td>
+<td style="text-align: right;">~30</td>
+<td>SRAM, inside SM</td>
+</tr>
+<tr class="odd">
+<td>L2 cache</td>
+<td>50 MB</td>
+<td style="text-align: right;">~260</td>
+<td>SRAM, on the die</td>
+</tr>
+<tr class="even">
+<td>HBM3</td>
+<td>80 GB</td>
+<td style="text-align: right;">~600</td>
+<td>DRAM, off the die</td>
+</tr>
+</tbody>
+</table>
+<p>Two pairs of terms are worth separating clearly.</p>
+<p><strong>SRAM vs DRAM.</strong> These are two ways of building memory. <strong>SRAM</strong> stores each bit in a small circuit of about six transistors. It’s fast and needs no refreshing, but it takes a lot of area, so you can only fit tens of megabytes on a chip. <strong>DRAM</strong> stores each bit as charge in one tiny capacitor. It’s far denser, so you get gigabytes, but it’s slower and must be refreshed constantly. <strong>HBM</strong> is DRAM stacked vertically and wired to the GPU through thousands of connections in a silicon interposer, which is how it reaches 3.35 TB/s.</p>
+<p><strong>Cache vs shared memory.</strong> These live in the <em>same</em> 256 KB of SRAM in each SM. The difference is who’s in charge. A <strong>cache</strong> (L1, L2) is managed by hardware: it keeps recently used data and guesses what you’ll need. <strong>Shared memory</strong> is managed by you: your kernel explicitly copies a tile of data in, and every thread in the block can read it. Shared memory is how a block of threads <em>cooperates</em>.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Registers are what’s in your hands. Shared memory is your desk. L2 is the bookshelf down the corridor. HBM is a warehouse across town: huge, but every trip costs time.</p>
+</div>
+</div>
+<p>The lesson for fast code: <strong>load each byte from HBM once, then reuse it as many times as possible from SRAM.</strong> The next two sections show why that matters so much.</p>
+</section>
+<section id="memory-bandwidth-vs-flops-the-roofline" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="memory-bandwidth-vs-flops-the-roofline">Memory bandwidth vs FLOPs: the roofline</h2>
+<p>Here’s the most important pair of numbers on the spec sheet:</p>
+<ul>
+<li><strong>Compute:</strong> 989 trillion BF16 FLOPs per second.</li>
+<li><strong>Memory bandwidth:</strong> 3.35 trillion bytes per second from HBM.</li>
+</ul>
+<p>Divide one by the other: the H100 can do about <strong>295 FLOPs in the time it takes to fetch one byte</strong>. So whether a program is fast depends on how much work it does per byte it loads. That ratio is called <strong>arithmetic intensity</strong>:</p>
+<p><span class="math display">\[
+\text{intensity} = \frac{\text{FLOPs performed}}{\text{bytes moved from memory}}
+\]</span></p>
+<p>The speed you can actually reach is the lower of two limits:</p>
+<p><span class="math display">\[
+\text{achievable FLOPS} = \min\big(\underbrace{989\ \text{TFLOPS}}_{\text{compute roof}},\ \underbrace{3.35\ \text{TB/s} \times \text{intensity}}_{\text{memory roof}}\big)
+\]</span></p>
+<p>Plotted on log-log axes, this gives the <strong>roofline</strong>: a sloped line (memory limit) that meets a flat line (compute limit) at the <strong>ridge point</strong>, about 295 FLOPs per byte.</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="roofline" aria-label="Interactive roofline model for the H100">
+<figcaption><b>Figure 7 · The roofline.</b> Drag the slider or pick a preset. Left of the ridge, the program is <i>memory-bound</i>: the HBM pipe is full and the Tensor Cores wait. Right of the ridge, it's <i>compute-bound</i>: the Tensor Cores are the limit.</figcaption>
+</figure>
+<p>The presets are real workloads:</p>
+<ul>
+<li><strong>Vector add in FP32:</strong> read two 4-byte numbers, write one, do 1 FLOP. That’s 1 FLOP per 12 bytes, about 0.3 TFLOPS. A 989 TFLOPS chip running at 0.03% of its peak, and there’s nothing the kernel can do about it.</li>
+<li><strong>LLM decoding at batch size 1:</strong> generating one token multiplies every weight matrix by a single vector. Each 2-byte BF16 weight is loaded once and used in one FMA (2 FLOPs), so intensity is about 1 FLOP/B. That’s why token-by-token generation is memory-bound.</li>
+<li><strong>Decoding at batch size 64:</strong> each weight loaded from HBM is now reused for 64 tokens, so intensity rises to about 64 FLOP/B. This is the whole reason inference servers batch requests together.</li>
+<li><strong>A big square matrix multiply</strong> (<span class="math inline">\(8192^3\)</span> in BF16): intensity is about <span class="math inline">\(n/3 \approx 2{,}731\)</span> FLOP/B, well past the ridge. Compute-bound.</li>
+</ul>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>A kitchen with incredibly fast chefs and one narrow door for groceries. If each dish needs a lot of groceries, the chefs spend their time waiting at the door. Buying faster chefs won’t help; you need dishes that do more cooking per grocery bag.</p>
+</div>
+</div>
+</section>
+<section id="putting-it-all-together-one-gemm" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="putting-it-all-together-one-gemm">Putting it all together: one GEMM</h2>
+<p>Everything so far comes together in the single most important operation in deep learning, the <strong>GEMM</strong> (GEneral Matrix Multiply):</p>
+<p><span class="math display">\[
+C = A \times B, \qquad A \in \mathbb{R}^{M \times K},\ B \in \mathbb{R}^{K \times N}
+\]</span></p>
+<p>Every <code>nn.Linear</code> layer is a GEMM. So are the <span class="math inline">\(QK^\top\)</span> and <span class="math inline">\(\text{scores} \cdot V\)</span> products in attention, and the MLP blocks of a transformer. Together, GEMMs make up the large majority of a model’s FLOPs.</p>
+<p>Let’s size a typical one: a linear layer with 4,096 inputs and outputs, applied to 2,048 tokens.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1"><a href="#cb4-1" aria-hidden="true" tabindex="-1"></a>y <span class="op">=</span> torch.nn.Linear(<span class="dv">4096</span>, <span class="dv">4096</span>)(x)   <span class="co"># x: (2048, 4096) in bf16</span></span>
+<span id="cb4-2"><a href="#cb4-2" aria-hidden="true" tabindex="-1"></a><span class="co"># underneath: Y = X @ W.T  →  M = 2048, K = 4096, N = 4096</span></span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 16%">
+<col style="width: 43%">
+<col style="width: 39%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Quantity</th>
+<th>Formula</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FLOPs</td>
+<td><span class="math inline">\(2MNK\)</span></td>
+<td>≈ 68.7 GFLOPs</td>
+</tr>
+<tr class="even">
+<td>Bytes</td>
+<td><span class="math inline">\(2(MK + KN + MN)\)</span></td>
+<td>≈ 67 MB</td>
+</tr>
+<tr class="odd">
+<td>Intensity</td>
+<td>FLOPs ÷ bytes</td>
+<td>≈ 1,000 FLOP/B → compute-bound</td>
+</tr>
+<tr class="even">
+<td>Ideal time</td>
+<td>FLOPs ÷ 989 TFLOPS</td>
+<td>≈ 70 µs</td>
+</tr>
+</tbody>
+</table>
+<p>But that intensity only holds if each matrix is read from HBM <strong>once</strong>. A naive kernel, where every multiply-add fetches its two inputs from memory, does 2 FLOPs per 4 bytes: just 0.5 FLOP/B, deep in memory-bound territory. The trick that closes the gap is <strong>tiling</strong>.</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="matmul" aria-label="Animation of a tiled GEMM moving tiles from HBM through L2 and shared memory to Tensor Cores">
+<figcaption><b>Figure 8 · A tiled GEMM.</b> One thread block owns one output tile of C (outlined). It walks along K: each step, the TMA copies a tile of A and a tile of B from HBM (copper) into shared memory, and the Tensor Cores multiply them into registers (violet). The next tile is already loading while the current one is computed. At the end, the finished tile is written back to HBM once.</figcaption>
+</figure>
+<p>Each thread block computes one tile of <span class="math inline">\(C\)</span>, say 128×128, and loops over <span class="math inline">\(K\)</span> in chunks of 64:</p>
+<ol type="1">
+<li>The <strong>TMA</strong> copies a 128×64 tile of <span class="math inline">\(A\)</span> and a 64×128 tile of <span class="math inline">\(B\)</span> from HBM, through L2, into <strong>shared memory</strong>.</li>
+<li><strong>Warps</strong> load pieces of those tiles into their <strong>registers</strong>.</li>
+<li><strong>Tensor Cores</strong> run MMA instructions, accumulating into <span class="math inline">\(C\)</span> in registers.</li>
+<li>After the last chunk, the finished <span class="math inline">\(C\)</span> tile is written back to HBM.</li>
+</ol>
+<p>Per step, the block loads <span class="math inline">\(32\)</span> KB and performs <span class="math inline">\(2 \times 128 \times 128 \times 64 \approx 2.1\)</span> million FLOPs: <strong>64 FLOP/B</strong>, 128 times more reuse than the naive version. Neighbouring blocks often need the same tiles of <span class="math inline">\(A\)</span> and <span class="math inline">\(B\)</span>, and they find them in the 50 MB L2 cache instead of HBM, which pushes the effective intensity higher still.</p>
+<p>Notice the <strong>double buffering</strong> too: while one buffer in shared memory is being computed on, the next tile is already loading into the other. It’s the same idea as warp switching in Figure 4: <strong>overlap waiting with useful work.</strong></p>
+<p>Now every concept from this post has a job:</p>
+<pre><code>GEMM (one kernel launch)
+ └─ thread blocks          → spread across the 132 SMs
+     └─ warps / warpgroups → scheduled on the 4 sub-partitions, hiding latency
+         └─ MMA instructions on Tensor Cores
+             └─ thousands of FMAs each
+ data path: HBM → L2 → shared memory (TMA) → registers → Tensor Cores</code></pre>
+<p>This is what libraries like cuBLAS and CUTLASS do when you call <code>torch.matmul</code>. And <strong>FlashAttention</strong> is this same pattern applied to attention: it tiles <span class="math inline">\(Q\)</span>, <span class="math inline">\(K\)</span> and <span class="math inline">\(V\)</span> through shared memory so the large <span class="math inline">\(N \times N\)</span> attention matrix never has to be written to HBM at all.</p>
+</section>
+<section id="cheat-sheet" class="level2">
+<h2 class="anchored" data-anchor-id="cheat-sheet">Cheat sheet</h2>
+<p>Most confusion comes from mixing up the things you write in code with the things that physically exist on the chip.</p>
+<div class="gpu-cheat">
+<section id="software-what-your-code-creates" class="level4 sw">
+<h4 class="anchored" data-anchor-id="software-what-your-code-creates">Software: what your code creates</h4>
+<dl>
+<dt>Thread</dt>
+<dd>
+One running copy of your kernel, with its own variables and thread index.
+</dd>
+<dt>Warp</dt>
+<dd>
+32 consecutive threads that always execute the same instruction together.
+</dd>
+<dt>Lane</dt>
+<dd>
+A thread’s position in its warp, 0 to 31 (threadIdx.x % 32).
+</dd>
+<dt>Thread block</dt>
+<dd>
+Up to 1,024 threads that share shared memory. Runs on one SM.
+</dd>
+</dl>
+</section>
+<section id="hardware-what-is-on-the-chip" class="level4 hw">
+<h4 class="anchored" data-anchor-id="hardware-what-is-on-the-chip">Hardware: what is on the chip</h4>
+<dl>
+<dt>SM</dt>
+<dd>
+The building block, copied 132 times. Runs several blocks at once.
+</dd>
+<dt>Sub-partition</dt>
+<dd>
+A quarter of an SM: warp scheduler, registers, 32 FP32 lanes, 1 Tensor Core.
+</dd>
+<dt>CUDA core</dt>
+<dd>
+One FP32 unit. The 32 in a sub-partition are the lanes a warp’s FP32 instruction runs on.
+</dd>
+<dt>Tensor Core</dt>
+<dd>
+A matrix engine that executes MMA instructions on tiles.
+</dd>
+</dl>
+</section>
+</div>
+<div class="gpu-tldr">
+<p><strong>The five ideas to remember</strong></p>
+<ol type="1">
+<li>A GPU wins on <strong>throughput</strong>: thousands of simple lanes doing the same instruction on different data.</li>
+<li>Work is scheduled in <strong>warps</strong> of 32 threads. Many warps share the same lanes and take turns every cycle, which <strong>hides memory latency</strong>.</li>
+<li><strong>Tensor Cores</strong> do matrix tiles (MMA) instead of single numbers (FMA), which is where nearly all the FLOPs come from.</li>
+<li>Memory is a <strong>hierarchy</strong>: tiny and fast SRAM (registers, shared memory, L2) close to the cores; huge and slow DRAM (HBM) far away.</li>
+<li>Performance is set by <strong>arithmetic intensity</strong>: below about 295 FLOPs per byte you’re limited by bandwidth, above it by compute. <strong>Tiling</strong> is how we climb the roofline.</li>
+</ol>
+</div>
+</section>
+<section id="further-reading" class="level2">
+<h2 class="anchored" data-anchor-id="further-reading">Further reading</h2>
+<ul>
+<li><a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/">NVIDIA Hopper Architecture In-Depth</a>: NVIDIA’s own tour of the H100, including SM diagrams, TMA and the Tensor Core details.</li>
+<li><a href="https://docs.nvidia.com/cuda/cuda-c-programming-guide/">CUDA C++ Programming Guide</a>: the reference for threads, blocks, warps and the memory hierarchy.</li>
+<li><a href="https://horace.io/brrr_intro.html">Making Deep Learning Go Brrrr From First Principles</a> by Horace He: a great follow-up on compute-, memory- and overhead-bound workloads.</li>
+<li><a href="https://doi.org/10.1145/1498765.1498785">Roofline: An Insightful Visual Performance Model</a> by Williams, Waterman and Patterson: the original roofline paper.</li>
+<li><a href="https://arxiv.org/abs/2205.14135">FlashAttention</a> by Dao et al.: tiling and SRAM reuse applied to attention.</li>
+<li><a href="https://github.com/NVIDIA/cutlass">CUTLASS</a>: NVIDIA’s open-source templates for writing tiled GEMM kernels.</li>
+</ul>
+<p><em>Spec figures are from NVIDIA’s <a href="https://www.nvidia.com/en-us/data-center/h100/">H100 product page</a> and Hopper whitepaper, quoted dense (NVIDIA’s Tensor Core figures are listed with sparsity, which doubles them). Latencies are approximate and vary with access pattern. The animations are simplified models, slowed down and scaled so each idea is visible.</em></p>
+<script src="gpu-figs.js"></script>
+
+
+</section>
+
+</main> <!-- /main -->
+<script id="quarto-html-after-body" type="application/javascript">
+  window.document.addEventListener("DOMContentLoaded", function (event) {
+    const icon = "";
+    const anchorJS = new window.AnchorJS();
+    anchorJS.options = {
+      placement: 'right',
+      icon: icon
+    };
+    anchorJS.add('.anchored');
+    const isCodeAnnotation = (el) => {
+      for (const clz of el.classList) {
+        if (clz.startsWith('code-annotation-')) {                     
+          return true;
+        }
+      }
+      return false;
+    }
+    const onCopySuccess = function(e) {
+      // button target
+      const button = e.trigger;
+      // don't keep focus
+      button.blur();
+      // flash "checked"
+      button.classList.add('code-copy-button-checked');
+      var currentTitle = button.getAttribute("title");
+      button.setAttribute("title", "Copied!");
+      let tooltip;
+      if (window.bootstrap) {
+        button.setAttribute("data-bs-toggle", "tooltip");
+        button.setAttribute("data-bs-placement", "left");
+        button.setAttribute("data-bs-title", "Copied!");
+        tooltip = new bootstrap.Tooltip(button, 
+          { trigger: "manual", 
+            customClass: "code-copy-button-tooltip",
+            offset: [0, -8]});
+        tooltip.show();    
+      }
+      setTimeout(function() {
+        if (tooltip) {
+          tooltip.hide();
+          button.removeAttribute("data-bs-title");
+          button.removeAttribute("data-bs-toggle");
+          button.removeAttribute("data-bs-placement");
+        }
+        button.setAttribute("title", currentTitle);
+        button.classList.remove('code-copy-button-checked');
+      }, 1000);
+      // clear code selection
+      e.clearSelection();
+    }
+    const getTextToCopy = function(trigger) {
+      const outerScaffold = trigger.parentElement.cloneNode(true);
+      const codeEl = outerScaffold.querySelector('code');
+      for (const childEl of codeEl.children) {
+        if (isCodeAnnotation(childEl)) {
+          childEl.remove();
+        }
+      }
+      return codeEl.innerText;
+    }
+    const clipboard = new window.ClipboardJS('.code-copy-button:not([data-in-quarto-modal])', {
+      text: getTextToCopy
+    });
+    clipboard.on('success', onCopySuccess);
+    if (window.document.getElementById('quarto-embedded-source-code-modal')) {
+      const clipboardModal = new window.ClipboardJS('.code-copy-button[data-in-quarto-modal]', {
+        text: getTextToCopy,
+        container: window.document.getElementById('quarto-embedded-source-code-modal')
+      });
+      clipboardModal.on('success', onCopySuccess);
+    }
+      var localhostRegex = new RegExp(/^(?:http|https):\/\/localhost\:?[0-9]*\//);
+      var mailtoRegex = new RegExp(/^mailto:/);
+        var filterRegex = new RegExp("https:\/\/iAbhyuday\.github\.io\/iabhyuday\.github\.io\/");
+      var isInternal = (href) => {
+          return filterRegex.test(href) || localhostRegex.test(href) || mailtoRegex.test(href);
+      }
+      // Inspect non-navigation links and adorn them if external
+     var links = window.document.querySelectorAll('a[href]:not(.nav-link):not(.navbar-brand):not(.toc-action):not(.sidebar-link):not(.sidebar-item-toggle):not(.pagination-link):not(.no-external):not([aria-hidden]):not(.dropdown-item):not(.quarto-navigation-tool):not(.about-link)');
+      for (var i=0; i<links.length; i++) {
+        const link = links[i];
+        if (!isInternal(link.href)) {
+          // undo the damage that might have been done by quarto-nav.js in the case of
+          // links that we want to consider external
+          if (link.dataset.originalHref !== undefined) {
+            link.href = link.dataset.originalHref;
+          }
+        }
+      }
+    function tippyHover(el, contentFn, onTriggerFn, onUntriggerFn) {
+      const config = {
+        allowHTML: true,
+        maxWidth: 500,
+        delay: 100,
+        arrow: false,
+        appendTo: function(el) {
+            return el.parentElement;
+        },
+        interactive: true,
+        interactiveBorder: 10,
+        theme: 'quarto',
+        placement: 'bottom-start',
+      };
+      if (contentFn) {
+        config.content = contentFn;
+      }
+      if (onTriggerFn) {
+        config.onTrigger = onTriggerFn;
+      }
+      if (onUntriggerFn) {
+        config.onUntrigger = onUntriggerFn;
+      }
+      window.tippy(el, config); 
+    }
+    const noterefs = window.document.querySelectorAll('a[role="doc-noteref"]');
+    for (var i=0; i<noterefs.length; i++) {
+      const ref = noterefs[i];
+      tippyHover(ref, function() {
+        // use id or data attribute instead here
+        let href = ref.getAttribute('data-footnote-href') || ref.getAttribute('href');
+        try { href = new URL(href).hash; } catch {}
+        const id = href.replace(/^#\/?/, "");
+        const note = window.document.getElementById(id);
+        if (note) {
+          return note.innerHTML;
+        } else {
+          return "";
+        }
+      });
+    }
+    const xrefs = window.document.querySelectorAll('a.quarto-xref');
+    const processXRef = (id, note) => {
+      // Strip column container classes
+      const stripColumnClz = (el) => {
+        el.classList.remove("page-full", "page-columns");
+        if (el.children) {
+          for (const child of el.children) {
+            stripColumnClz(child);
+          }
+        }
+      }
+      stripColumnClz(note)
+      if (id === null || id.startsWith('sec-')) {
+        // Special case sections, only their first couple elements
+        const container = document.createElement("div");
+        if (note.children && note.children.length > 2) {
+          container.appendChild(note.children[0].cloneNode(true));
+          for (let i = 1; i < note.children.length; i++) {
+            const child = note.children[i];
+            if (child.tagName === "P" && child.innerText === "") {
+              continue;
+            } else {
+              container.appendChild(child.cloneNode(true));
+              break;
+            }
+          }
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(container);
+          }
+          return container.innerHTML
+        } else {
+          if (window.Quarto?.typesetMath) {
+            window.Quarto.typesetMath(note);
+          }
+          return note.innerHTML;
+        }
+      } else {
+        // Remove any anchor links if they are present
+        const anchorLink = note.querySelector('a.anchorjs-link');
+        if (anchorLink) {
+          anchorLink.remove();
+        }
+        if (window.Quarto?.typesetMath) {
+          window.Quarto.typesetMath(note);
+        }
+        if (note.classList.contains("callout")) {
+          return note.outerHTML;
+        } else {
+          return note.innerHTML;
+        }
+      }
+    }
+    for (var i=0; i<xrefs.length; i++) {
+      const xref = xrefs[i];
+      tippyHover(xref, undefined, function(instance) {
+        instance.disable();
+        let url = xref.getAttribute('href');
+        let hash = undefined; 
+        if (url.startsWith('#')) {
+          hash = url;
+        } else {
+          try { hash = new URL(url).hash; } catch {}
+        }
+        if (hash) {
+          const id = hash.replace(/^#\/?/, "");
+          const note = window.document.getElementById(id);
+          if (note !== null) {
+            try {
+              const html = processXRef(id, note.cloneNode(true));
+              instance.setContent(html);
+            } finally {
+              instance.enable();
+              instance.show();
+            }
+          } else {
+            // See if we can fetch this
+            fetch(url.split('#')[0])
+            .then(res => res.text())
+            .then(html => {
+              const parser = new DOMParser();
+              const htmlDoc = parser.parseFromString(html, "text/html");
+              const note = htmlDoc.getElementById(id);
+              if (note !== null) {
+                const html = processXRef(id, note);
+                instance.setContent(html);
+              } 
+            }).finally(() => {
+              instance.enable();
+              instance.show();
+            });
+          }
+        } else {
+          // See if we can fetch a full url (with no hash to target)
+          // This is a special case and we should probably do some content thinning / targeting
+          fetch(url)
+          .then(res => res.text())
+          .then(html => {
+            const parser = new DOMParser();
+            const htmlDoc = parser.parseFromString(html, "text/html");
+            const note = htmlDoc.querySelector('main.content');
+            if (note !== null) {
+              // This should only happen for chapter cross references
+              // (since there is no id in the URL)
+              // remove the first header
+              if (note.children.length > 0 && note.children[0].tagName === "HEADER") {
+                note.children[0].remove();
+              }
+              const html = processXRef(null, note);
+              instance.setContent(html);
+            } 
+          }).finally(() => {
+            instance.enable();
+            instance.show();
+          });
+        }
+      }, function(instance) {
+      });
+    }
+        let selectedAnnoteEl;
+        const selectorForAnnotation = ( cell, annotation) => {
+          let cellAttr = 'data-code-cell="' + cell + '"';
+          let lineAttr = 'data-code-annotation="' +  annotation + '"';
+          const selector = 'span[' + cellAttr + '][' + lineAttr + ']';
+          return selector;
+        }
+        const selectCodeLines = (annoteEl) => {
+          const doc = window.document;
+          const targetCell = annoteEl.getAttribute("data-target-cell");
+          const targetAnnotation = annoteEl.getAttribute("data-target-annotation");
+          const annoteSpan = window.document.querySelector(selectorForAnnotation(targetCell, targetAnnotation));
+          const lines = annoteSpan.getAttribute("data-code-lines").split(",");
+          const lineIds = lines.map((line) => {
+            return targetCell + "-" + line;
+          })
+          let top = null;
+          let height = null;
+          let parent = null;
+          if (lineIds.length > 0) {
+              //compute the position of the single el (top and bottom and make a div)
+              const el = window.document.getElementById(lineIds[0]);
+              top = el.offsetTop;
+              height = el.offsetHeight;
+              parent = el.parentElement.parentElement;
+            if (lineIds.length > 1) {
+              const lastEl = window.document.getElementById(lineIds[lineIds.length - 1]);
+              const bottom = lastEl.offsetTop + lastEl.offsetHeight;
+              height = bottom - top;
+            }
+            if (top !== null && height !== null && parent !== null) {
+              // cook up a div (if necessary) and position it 
+              let div = window.document.getElementById("code-annotation-line-highlight");
+              if (div === null) {
+                div = window.document.createElement("div");
+                div.setAttribute("id", "code-annotation-line-highlight");
+                div.style.position = 'absolute';
+                parent.appendChild(div);
+              }
+              div.style.top = top - 2 + "px";
+              div.style.height = height + 4 + "px";
+              div.style.left = 0;
+              let gutterDiv = window.document.getElementById("code-annotation-line-highlight-gutter");
+              if (gutterDiv === null) {
+                gutterDiv = window.document.createElement("div");
+                gutterDiv.setAttribute("id", "code-annotation-line-highlight-gutter");
+                gutterDiv.style.position = 'absolute';
+                const codeCell = window.document.getElementById(targetCell);
+                const gutter = codeCell.querySelector('.code-annotation-gutter');
+                gutter.appendChild(gutterDiv);
+              }
+              gutterDiv.style.top = top - 2 + "px";
+              gutterDiv.style.height = height + 4 + "px";
+            }
+            selectedAnnoteEl = annoteEl;
+          }
+        };
+        const unselectCodeLines = () => {
+          const elementsIds = ["code-annotation-line-highlight", "code-annotation-line-highlight-gutter"];
+          elementsIds.forEach((elId) => {
+            const div = window.document.getElementById(elId);
+            if (div) {
+              div.remove();
+            }
+          });
+          selectedAnnoteEl = undefined;
+        };
+          // Handle positioning of the toggle
+      window.addEventListener(
+        "resize",
+        throttle(() => {
+          elRect = undefined;
+          if (selectedAnnoteEl) {
+            selectCodeLines(selectedAnnoteEl);
+          }
+        }, 10)
+      );
+      function throttle(fn, ms) {
+      let throttle = false;
+      let timer;
+        return (...args) => {
+          if(!throttle) { // first call gets through
+              fn.apply(this, args);
+              throttle = true;
+          } else { // all the others get throttled
+              if(timer) clearTimeout(timer); // cancel #2
+              timer = setTimeout(() => {
+                fn.apply(this, args);
+                timer = throttle = false;
+              }, ms);
+          }
+        };
+      }
+        // Attach click handler to the DT
+        const annoteDls = window.document.querySelectorAll('dt[data-target-cell]');
+        for (const annoteDlNode of annoteDls) {
+          annoteDlNode.addEventListener('click', (event) => {
+            const clickedEl = event.target;
+            if (clickedEl !== selectedAnnoteEl) {
+              unselectCodeLines();
+              const activeEl = window.document.querySelector('dt[data-target-cell].code-annotation-active');
+              if (activeEl) {
+                activeEl.classList.remove('code-annotation-active');
+              }
+              selectCodeLines(clickedEl);
+              clickedEl.classList.add('code-annotation-active');
+            } else {
+              // Unselect the line
+              unselectCodeLines();
+              clickedEl.classList.remove('code-annotation-active');
+            }
+          });
+        }
+    const findCites = (el) => {
+      const parentEl = el.parentElement;
+      if (parentEl) {
+        const cites = parentEl.dataset.cites;
+        if (cites) {
+          return {
+            el,
+            cites: cites.split(' ')
+          };
+        } else {
+          return findCites(el.parentElement)
+        }
+      } else {
+        return undefined;
+      }
+    };
+    var bibliorefs = window.document.querySelectorAll('a[role="doc-biblioref"]');
+    for (var i=0; i<bibliorefs.length; i++) {
+      const ref = bibliorefs[i];
+      const citeInfo = findCites(ref);
+      if (citeInfo) {
+        tippyHover(citeInfo.el, function() {
+          var popup = window.document.createElement('div');
+          citeInfo.cites.forEach(function(cite) {
+            var citeDiv = window.document.createElement('div');
+            citeDiv.classList.add('hanging-indent');
+            citeDiv.classList.add('csl-entry');
+            var biblioDiv = window.document.getElementById('ref-' + cite);
+            if (biblioDiv) {
+              citeDiv.innerHTML = biblioDiv.innerHTML;
+            }
+            popup.appendChild(citeDiv);
+          });
+          return popup.innerHTML;
+        });
+      }
+    }
+  });
+  </script>
+</div> <!-- /content -->
+
+
+
+
+</body></html>
