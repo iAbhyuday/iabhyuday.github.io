@@ -1,17 +1,10 @@
 [
   {
-    "objectID": "index.html",
-    "href": "index.html",
-    "title": "Blog",
+    "objectID": "about.html",
+    "href": "about.html",
+    "title": "About",
     "section": "",
-    "text": "How a GPU Works: A Visual Tour of the H100\n\n\n\ngpu\n\ndeep-learning\n\nhardware\n\n\n\nSMs, warps, lanes, CUDA cores, Tensor Cores, HBM, SRAM, bandwidth and FLOPs, explained with animations and built up one idea at a time.\n\n\n\n\n\nOct 21, 2026\n\n\nAbhyuday\n\n\n\n\n\n\n\n\n\n\n\n\nGumbel Softmax: Differentiable Sampling from Discrete Distributions\n\n\n\ncode\n\n\n\n\n\n\n\n\n\nDec 23, 2024\n\n\nAbhyuday\n\n\n\n\n\n\n\n\n\n\n\n\nPost With Code\n\n\n\nnews\n\ncode\n\nanalysis\n\n\n\n\n\n\n\n\n\nOct 26, 2024\n\n\nHarlow Malloc\n\n\n\n\n\n\n\n\n\n\n\n\nWelcome To My Blog\n\n\n\nnews\n\n\n\n\n\n\n\n\n\nOct 23, 2024\n\n\nTristan O’Malley\n\n\n\n\n\nNo matching items"
-  },
-  {
-    "objectID": "posts/welcome/index.html",
-    "href": "posts/welcome/index.html",
-    "title": "Welcome To My Blog",
-    "section": "",
-    "text": "This is the first post in a Quarto blog. Welcome!\n\nSince this post doesn’t specify an explicit image, the first image in the post will be used in the listing page of posts."
+    "text": "About this blog"
   },
   {
     "objectID": "posts/differentiable-sampling/index.html",
@@ -42,11 +35,25 @@
     "text": "Gumbel Softmax\nAs mentioned in the previous section, we need a differentiable solution for argmax-styled determinism and stochastic nature of random selection to maintain the exploration & exploitation.\nWe’ll now discuss the proposed two-fold solution:\n\nSoftmax with temperature\nThe softmax with temperature modifies the output probabilities of a categorical distribution by scaling the logits \\(z\\) with a temperature parameter \\(\\tau\\):\n\\[\n\\text{softmax}(z_i, \\tau) = \\frac{e^{z_i/\\tau}}{\\sum_{j=1}^{n} e^{z_j/\\tau}}\n\\]\n\nHigh Temperature (\\(\\tau \\to \\infty\\)): Makes probabilities more uniform\nLow Temperature (\\(\\tau \\to 0\\)): Sharpens the probability, approximation of one-hot vector\n\n\nfunction softmax(logits, temp){\n  let sum=0\n  for (let index = 0; index &lt; logits.length; index++) {\n    sum+= Math.exp((logits[index] + 1e-8)/temp)\n  }\n  let probs = logits.map(x=&gt; Math.exp((x + 1e-8)/temp)/sum)\n  return probs\n}\nprob = Array.from({length: 5}, ()=&gt;Math.random()*10)\nviewof gain = Inputs.range([0.1, 50], {value: 20, step: 0.1, label: \"Temperature (τ)   \"})\nPlot.barY(softmax(prob, gain)\n ).plot({x: {label: \"Categories\"}, y: {label: \"Probs\"}})\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nThis approach provides a differentiable alternative to argmax-styled one-hot approximation (at low temperatures). However, it still fails to introduce stochasticity at low temperatures. It always outputs a deterministic distribution for a given set of logits \\(z\\) .\n\n\nGumbel Noise\nStochasticity is needed to encourage exploration and mimic random sampling from given categorical distribution. We can inject this stochasticity through perturbing the logits by adding a noise \\(\\epsilon\\) value before applying softmax.\nGumbel noise emerges as the perfect candidate for this because of following properties:\n\nIt is mathematically aligned with categorical distributions and enables differentiable approximation of discrete sampling via the Gumbel-Softmax trick.\nIt introduces randomness in a way that respects the structure of categorical distributions while enabling gradient-based optimization.\n\nGumble noise \\(\\epsilon\\) is sampled from the standard Gumbel distribution. We can draw such noise samples by first computing \\(u \\sim Uniform(0, 1)\\) and then computing \\(\\epsilon = -\\log(-\\log(u))\\) .\nNow putting it all together we have the Gumble Softmax Equation as:\n\\[\nGumbelSoftmax(z_i, \\tau) =  \\frac{e^{(z_i + \\epsilon)/\\tau}}{\\sum_{j=1}^{n} e^{(z_j + \\epsilon)/\\tau}}\n\\]\n\nStochasticity: \\(\\epsilon\\) injects randomness, enabling exploration.\nDifferentiability: The softmax function ensures the operation is differentiable.\nControl: \\(\\tau\\) adjusts the trade-off between exploration and exploitation."
   },
   {
+    "objectID": "posts/welcome/index.html",
+    "href": "posts/welcome/index.html",
+    "title": "Welcome To My Blog",
+    "section": "",
+    "text": "This is the first post in a Quarto blog. Welcome!\n\nSince this post doesn’t specify an explicit image, the first image in the post will be used in the listing page of posts."
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Blog",
+    "section": "",
+    "text": "How a GPU Works: A Visual Tour of the H100\n\n\n\ngpu\n\ndeep-learning\n\nhardware\n\n\n\nSMs, warps, lanes, CUDA cores, Tensor Cores, HBM, SRAM, bandwidth and FLOPs, explained with animations and built up one idea at a time.\n\n\n\n\n\nOct 21, 2026\n\n\nAbhyuday\n\n\n\n\n\n\n\n\n\n\n\n\nGumbel Softmax: Differentiable Sampling from Discrete Distributions\n\n\n\ncode\n\n\n\n\n\n\n\n\n\nDec 23, 2024\n\n\nAbhyuday\n\n\n\n\n\n\n\n\n\n\n\n\nPost With Code\n\n\n\nnews\n\ncode\n\nanalysis\n\n\n\n\n\n\n\n\n\nOct 26, 2024\n\n\nHarlow Malloc\n\n\n\n\n\n\n\n\n\n\n\n\nWelcome To My Blog\n\n\n\nnews\n\n\n\n\n\n\n\n\n\nOct 23, 2024\n\n\nTristan O’Malley\n\n\n\n\n\nNo matching items"
+  },
+  {
     "objectID": "posts/how-a-gpu-works/index.html",
     "href": "posts/how-a-gpu-works/index.html",
     "title": "How a GPU Works: A Visual Tour of the H100",
     "section": "",
-    "text": "Every time we call model(x) in PyTorch, billions of multiply-adds run on a GPU in a few milliseconds. Most of us treat that GPU as a black box that makes things fast. That works until it doesn’t: until a training run is mysteriously slow, an inference server can’t keep up, or someone says “this kernel is memory-bound” and we nod without really knowing what it means.\nIn this blog post, we’ll open the box. We’ll use NVIDIA’s H100 as our running example and build up a mental model one idea at a time. Each section answers what a part is, why it exists, and how it connects to the parts before it. Every figure is a small animation you can pause, restart, and in some cases play with.\nHere are the numbers we’ll make sense of along the way:\nBy the end, words like SM, warp, Tensor Core and memory-bound should feel concrete, along with the jargon around them."
+    "text": "Every time we call model(x) in PyTorch, billions of multiply-adds run on a GPU in a few milliseconds. Most of us treat that GPU as a black box that makes things fast. That works until it doesn’t: until a training run is mysteriously slow, an inference server can’t keep up, or someone says “this kernel is memory-bound” and we nod without really knowing what it means.\nIn this blog post, we’ll open the box. We’ll use NVIDIA’s H100 as our running example and build up a mental model one idea at a time. Each section answers what a part is, why it exists, and how it connects to the parts before it. Every figure is a small animation you can pause, restart, and in some cases play with.\nBy the end, words like SM, warp, Tensor Core and memory-bound should feel concrete, along with the jargon around them."
   },
   {
     "objectID": "posts/how-a-gpu-works/index.html#cpu-vs-gpu-what-a-core-really-means",
@@ -60,7 +67,7 @@
     "href": "posts/how-a-gpu-works/index.html#the-chip-132-kitchen-lines-and-a-warehouse",
     "title": "How a GPU Works: A Visual Tour of the H100",
     "section": "The chip: 132 kitchen lines and a warehouse",
-    "text": "The chip: 132 kitchen lines and a warehouse\nLet’s start from the outside. An H100 is a single large piece of silicon, the GH100 die, sitting next to stacks of memory on the same package.\n\nFigure 2 · The chip. Blue squares are thread blocks (chunks of your work). The GigaThread engine hands each one to an SM with free room, and that SM lights up green while it runs. Gold dots are data streaming from the HBM stacks into the L2 cache, which every SM shares.\n\nThree parts matter here.\nStreaming Multiprocessors (SMs). The SM is the basic building block: the unit that gets copied over and over. The full GH100 die has 144 SMs arranged in 8 groups called GPCs (graphics processing clusters). A die this big almost always has a few manufacturing defects, so NVIDIA switches off the faulty SMs and sells the chip with 132 enabled. That’s the dashed outlines in the figure.\nL2 cache (50 MB). A shared pantry in the middle of the chip. Every SM can read from it, and it’s much faster to reach than off-chip memory.\nHBM3 (80 GB). High Bandwidth Memory: five stacks of DRAM chips sitting right next to the die. This is where your model weights, activations and KV cache live. It’s big, but it’s off the die, so it’s the slowest tier.\n\n\n\n\n\n\nTipThink of it as\n\n\n\nA restaurant with 132 kitchen lines (SMs), a shared pantry in the middle (L2), and a warehouse next door (HBM). The head waiter hands each order (a thread block) to any line with free space."
+    "text": "The chip: 132 kitchen lines and a warehouse\nLet’s start from the outside. An H100 is a single large piece of silicon, the GH100 die, sitting next to stacks of memory on the same package.\n\nFigure 2 · The chip. Blue squares are thread blocks (chunks of your work). The GigaThread engine hands each one to an SM with free room, and that SM lights up green while it runs. Gold dots are data streaming from the HBM stacks into the L2 cache, which every SM shares.\n\nThree parts matter here.\nStreaming Multiprocessors (SMs). The SM is the basic building block: the unit that gets copied over and over. The full GH100 die has 144 SMs arranged in 8 groups called GPCs (graphics processing clusters). A die this big almost always has a few manufacturing defects, so NVIDIA switches off the faulty SMs and sells the chip with 132 enabled. That’s the dashed outlines in the figure.\nL2 cache (50 MB). A shared pantry in the middle of the chip. Every SM can read from it, and it’s much faster to reach than off-chip memory.\nHBM3 (80 GB). High Bandwidth Memory: five stacks of DRAM chips sitting right next to the die. This is where your model weights, activations and KV cache live. It’s big, but it’s off the die, so it’s the slowest tier.\nPut together, this is what NVIDIA prints on the H100’s spec sheet. Each number gets explained somewhere in this post; tap one to jump there.\n\n  H100 SXM5 by the numbers\n  \n    132SMsInside one SM\n    16,896CUDA coresThreads, warps and lanes\n    528Tensor CoresCUDA vs Tensor Cores\n    50 MBL2 cacheThe memory hierarchy\n    3.35 TB/sfrom 80 GB of HBM3The roofline\n    989TFLOPS in BF16The roofline\n  \n\n\n\n\n\n\n\nTipThink of it as\n\n\n\nA restaurant with 132 kitchen lines (SMs), a shared pantry in the middle (L2), and a warehouse next door (HBM). The head waiter hands each order (a thread block) to any line with free space."
   },
   {
     "objectID": "posts/how-a-gpu-works/index.html#how-your-code-gets-split-up",
@@ -145,12 +152,5 @@
     "title": "Post With Code",
     "section": "",
     "text": "This is a post with executable code."
-  },
-  {
-    "objectID": "about.html",
-    "href": "about.html",
-    "title": "About",
-    "section": "",
-    "text": "About this blog"
   }
 ]

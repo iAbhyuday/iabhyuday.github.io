@@ -125,3 +125,17 @@ body:not(.quarto-light) .gpu-stack{--gs-ink:#C8CCD0;--gs-strong:#DEE1E4;--gs-mut
   .gpu-stack .gs-name{font-size:.95rem}
   .gpu-stack .gs-where{font-size:.84rem}
 }
+
+/* "H100 by the numbers" card: each spec links to the section that explains it */
+.gpu-specs-card{margin:1.75rem 0 2rem;padding:16px 18px 18px;border:1px solid var(--d-rule, rgba(127,127,127,.25));border-radius:10px;background:var(--d-code-bg, transparent);font-family:var(--d-sans, sans-serif)}
+.gpu-specs-card .gsc-head{font-size:.72rem;font-weight:600;letter-spacing:.09em;text-transform:uppercase;color:var(--d-faint, #888);margin-bottom:12px}
+.gpu-specs-card .gsc-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:640px){.gpu-specs-card .gsc-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+main.content .gpu-specs-card a.gsc-tile{display:flex;flex-direction:column;gap:2px;padding:10px 12px;border-radius:8px;border:1px solid var(--d-rule, rgba(127,127,127,.25));border-bottom:1px solid var(--d-rule, rgba(127,127,127,.25));color:var(--d-ink, inherit);text-decoration:none;transition:border-color .15s, background .15s}
+main.content .gpu-specs-card a.gsc-tile:hover, main.content .gpu-specs-card a.gsc-tile:focus-visible{border-color:var(--d-accent, currentColor);color:var(--d-ink, inherit)}
+.gpu-specs-card .gsc-tile b{font-family:var(--d-serif, serif);font-size:1.45rem;font-weight:600;line-height:1.15;color:var(--d-h-main, var(--d-strong, inherit));font-variant-numeric:tabular-nums}
+.gpu-specs-card .gsc-tile span{font-size:.92rem;color:var(--d-ink, inherit);line-height:1.3}
+.gpu-specs-card .gsc-tile{line-height:1.3}
+.gpu-specs-card .gsc-tile small{font-size:.76rem;line-height:1.35;color:var(--d-muted, #888);margin-top:6px}
+.gpu-specs-card .gsc-tile small::after{content:" →"}
+@media (prefers-reduced-motion:reduce){.gpu-specs-card a.gsc-tile{transition:none}}
