@@ -1,0 +1,430 @@
+---
+title: "How a GPU Works: A Visual Tour of the H100"
+description: "SMs, warps, lanes, CUDA cores, Tensor Cores, HBM, SRAM, bandwidth and FLOPs, explained with animations and built up one idea at a time."
+date: "2026-10-21"
+author: "Abhyuday"
+categories: [gpu, deep-learning, hardware]
+image: thumbnail.png
+toc: true
+toc-depth: 2
+resources:
+  - gpu-figs.js
+format:
+  html:
+    css: gpu-figs.css
+---
+
+------------------------------------------------------------------------
+
+Every time we call `model(x)` in PyTorch, billions of multiply-adds run on a GPU in a few milliseconds. Most of us treat that GPU as a black box that makes things fast. That works until it doesn't: until a training run is mysteriously slow, an inference server can't keep up, or someone says *"this kernel is memory-bound"* and we nod without really knowing what it means.
+
+In this blog post, we'll open the box. We'll use NVIDIA's **H100** as our running example and build up a mental model one idea at a time. Each section answers *what* a part is, *why* it exists, and *how* it connects to the parts before it. Every figure is a small animation you can pause, restart, and in some cases play with.
+
+::: gpu-specs
+[**132** SMs]{} [**16,896** CUDA cores]{} [**528** Tensor Cores]{} [**50 MB** L2 cache]{} [**80 GB** HBM3 · **3.35 TB/s**]{} [**989** TFLOPS BF16]{}
+:::
+
+By the end, these words should feel concrete: **SM, warp, lane, CUDA core, Tensor Core, HBM, SRAM, cache, shared memory, memory bandwidth, FLOPs**, and the two acronyms you'll see in every performance discussion, **FMA** and **GEMM**.
+
+## The one idea behind every GPU
+
+A CPU and a GPU are built for different jobs.
+
+-   A **CPU** has a handful of powerful cores. Each one is very good at running a single stream of instructions quickly, with large caches, branch prediction and other tricks to keep that one stream from ever waiting. It is optimised for **latency**: finish *this* task as soon as possible.
+-   A **GPU** has thousands of simple execution units. Any single one is slower than a CPU core, but together they finish an enormous amount of work per second. It is optimised for **throughput**: finish *all* the tasks as soon as possible.
+
+::: callout-tip
+## Think of it as
+
+A CPU is a few brilliant chefs who can cook anything. A GPU is a factory floor with thousands of line workers, each doing one simple step, all at once.
+:::
+
+Deep learning is a perfect fit for the factory. A matrix multiply is millions of independent multiply-adds that don't depend on each other. Every design decision in the rest of this post exists to keep those thousands of workers busy.
+
+## The chip: 132 workshops and a warehouse
+
+Let's start from the outside. An H100 is a single large piece of silicon, the **GH100 die**, sitting next to stacks of memory on the same package.
+
+```{=html}
+<figure class="gpu-fig column-body-outset" data-fig="chip" aria-label="Animated diagram of the GH100 die with SMs, L2 cache and HBM stacks">
+<figcaption><b>Figure 1 · The chip.</b> Blue squares are <i>thread blocks</i> (chunks of your work). The GigaThread engine hands each one to an SM with free room, and that SM lights up teal while it runs. Copper dots are data streaming from the HBM stacks into the L2 cache, which every SM shares.</figcaption>
+</figure>
+```
+
+Three parts matter here.
+
+**Streaming Multiprocessors (SMs).** The SM is the basic building block: the unit that gets copied over and over. The full GH100 die has 144 SMs arranged in 8 groups called GPCs (graphics processing clusters). A die this big almost always has a few manufacturing defects, so NVIDIA switches off the faulty SMs and sells the chip with **132 enabled**. That's the dashed outlines in the figure.
+
+**L2 cache (50 MB).** A shared stockroom in the middle of the chip. Every SM can read from it, and it's much faster to reach than off-chip memory.
+
+**HBM3 (80 GB).** High Bandwidth Memory: five stacks of DRAM chips sitting right next to the die. This is where your model weights, activations and KV cache live. It's big, but it's off the die, so it's the slowest tier.
+
+::: callout-tip
+## Think of it as
+
+A factory with 132 identical workshops (SMs), a shared stockroom in the middle (L2), and warehouses next door (HBM). A dispatcher hands out work orders (thread blocks) to any workshop with free space.
+:::
+
+## How your code gets split up
+
+Before we look inside an SM, we need the vocabulary on the *software* side, because the hardware is designed around it.
+
+When you launch a GPU program (a **kernel**), you don't write a loop over a million elements. You write the code for *one* element, and ask the GPU to run it a million times in parallel. Here's the classic example, adding two vectors in CUDA:
+
+``` cuda
+__global__ void add(const float* a, const float* b, float* c, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;   // which element am I?
+    if (i < n) c[i] = a[i] + b[i];
+}
+
+// launch 4096 blocks of 256 threads = 1,048,576 threads
+add<<<4096, 256>>>(a, b, c, n);
+```
+
+This gives us a hierarchy of three software terms:
+
+-   **Thread:** one running copy of the kernel. It has its own variables and its own `threadIdx`.
+-   **Thread block:** a group of up to 1,024 threads. A block always runs on a single SM, so its threads can cooperate through fast shared memory.
+-   **Grid:** all the blocks of one kernel launch.
+
+The GPU schedules **blocks onto SMs**. That's exactly what Figure 1 showed: blue squares (blocks) flying to SMs. An SM can host several blocks at once, as long as it has room.
+
+## Inside one SM
+
+Now let's zoom into a single SM. Everything that actually *computes* lives here.
+
+```{=html}
+<figure class="gpu-fig column-body-outset" data-fig="sm" aria-label="Animated diagram of one SM with four sub-partitions">
+<figcaption><b>Figure 2 · One SM.</b> Each of the four sub-partitions has its own warp scheduler. Every tick, each scheduler issues one instruction. When it's a regular FP32 instruction, all 32 CUDA cores flash together (teal). When it's a matrix instruction, the Tensor Core flashes (violet). Copper dots move data from shared memory into registers.</figcaption>
+</figure>
+```
+
+An H100 SM is split into **four sub-partitions** (NVIDIA's whitepapers call them *processing blocks*; profilers call them *SMSPs*). Each sub-partition has:
+
+-   a **warp scheduler**, which decides what runs next,
+-   a **register file** of 64 KB, the fastest storage on the chip,
+-   **32 FP32 CUDA cores**, plus 16 INT32 and 16 FP64 units,
+-   **one Tensor Core**, a dedicated matrix-multiply engine.
+
+All four sub-partitions share a 256 KB block of on-chip memory that acts as **L1 cache** and **shared memory** (more on the difference later), plus the **TMA** (Tensor Memory Accelerator), a copy engine that moves whole tiles of data from global memory into shared memory in the background.
+
+| Per SM             | H100                           |
+|--------------------|--------------------------------|
+| FP32 CUDA cores    | 128 (32 per sub-partition)     |
+| Tensor Cores       | 4 (1 per sub-partition)        |
+| Register file      | 256 KB (65,536 × 32-bit)       |
+| L1 + shared memory | 256 KB (up to 228 KB shared)   |
+| Max resident threads | 2,048 (64 warps)             |
+
+One rule to keep in mind: **cores can only compute on values in registers.** Everything else, whether shared memory, L2 or HBM, must be loaded into registers first. That rule drives the whole memory story later on.
+
+::: callout-tip
+## Think of it as
+
+A workshop with four workbenches. Each bench has a foreman (scheduler), a tray of parts at hand (registers), 32 workers who always make the same move together (CUDA cores), and one specialised machine (Tensor Core). One supply shelf serves all four benches (shared memory).
+:::
+
+## Threads, warps and lanes: who runs where
+
+This is the part that confuses most people, including me for a long time. We have *software* things (threads, blocks) and *hardware* things (SMs, sub-partitions, cores). Two words connect them: **warp** and **lane**.
+
+```{=html}
+<figure class="gpu-fig column-body-outset" data-fig="threads" aria-label="Animation mapping 256 threads to 8 warps, 4 sub-partitions and 32 lanes">
+<figcaption><b>Figure 3 · Threads → warps → lanes.</b> A block of 256 threads runs on one SM in three steps. Follow the copper thread: thread 52 is in warp 1 at lane 20. It always runs on lane 20 of sub-partition 1, but only on the cycles when its warp is picked.</figcaption>
+</figure>
+```
+
+**Step 1: threads become warps.** The SM cuts every block into groups of **32 consecutive threads**, called **warps**. Threads 0–31 form warp 0, threads 32–63 form warp 1, and so on. A warp is the unit the hardware actually schedules: all 32 threads in a warp execute the **same instruction at the same time**, each on its own data. NVIDIA calls this SIMT, *single instruction, multiple threads*.
+
+A thread's position inside its warp, from 0 to 31, is its **lane**:
+
+``` cuda
+int warp = threadIdx.x / 32;   // thread 52 → warp 1
+int lane = threadIdx.x % 32;   // thread 52 → lane 20
+```
+
+**Step 2: warps go to sub-partitions.** Each warp is assigned to one of the four sub-partitions and stays there for its whole life. Its registers are allocated in that sub-partition's register file. Our 8 warps get spread 2 per sub-partition.
+
+**Step 3: warps take turns on the lanes.** Each sub-partition's 32 FP32 CUDA cores are the 32 **lanes** of its execution unit. When the scheduler issues an FP32 instruction for a warp, the thread in lane *i* runs on lane *i*. On the next cycle, the scheduler may pick a *different* warp, and that warp uses the same 32 lanes.
+
+So **a CUDA core is not "a thread's core"**. Up to 16 warps (512 threads) can live on one sub-partition, all sharing the same 32 lanes. A thread's state isn't stored in a core; it's stored in the **register file**. That's why switching between warps is free: nothing has to be saved or restored, the scheduler just points the lanes at a different warp's registers.
+
+::: callout-note
+## Not every unit is 32 lanes wide
+
+FP32 lines up perfectly: 32 threads, 32 units. Other instructions don't. A sub-partition has 16 FP64 units, so a warp's FP64 instruction takes **two passes**. Special functions like `sin` and `exp` run on a handful of SFUs and take several cycles. And there's only **one** Tensor Core per sub-partition, so the whole warp feeds it together, each thread holding a small piece of the matrices in its registers.
+:::
+
+::: callout-tip
+## Connect it to what you know
+
+On a CPU, you can run 500 threads on an 8-core machine because the OS time-slices them. A GPU does the same thing, with two differences: it switches **every clock cycle** instead of every few milliseconds (because no state has to be saved), and it switches in **bundles of 32 threads** that always execute the same instruction.
+
+If you've used SIMD on a CPU, a warp instruction is like an AVX instruction that is 32 lanes wide. CUDA just lets you write the code from one lane's point of view.
+:::
+
+## Why so many warps? Hiding memory latency
+
+Why would the hardware bother keeping 16 warps on a sub-partition when only one can run per cycle? Because of memory. A load from HBM takes **hundreds of cycles** to come back. If the scheduler had only one warp, it would sit idle for all of them.
+
+Try it below. Each warp in this model does two math instructions, then a load that stalls for 12 cycles (real HBM latency is closer to 500+, but 12 keeps it watchable).
+
+```{=html}
+<figure class="gpu-fig column-body-outset" data-fig="warps" aria-label="Interactive simulation of a warp scheduler hiding memory latency">
+<figcaption><b>Figure 4 · Latency hiding.</b> Each row is a warp; its 32 bars are its threads. Red cells in the issue-slot strip are wasted cycles. With 1 or 2 warps the scheduler is mostly idle. Move the slider to 5 or more and the red disappears: while one warp waits on memory, another is ready to run.</figcaption>
+</figure>
+```
+
+The arithmetic is simple. One warp keeps the scheduler busy for 3 cycles out of every 15 (3 instructions + 12 waiting). To fill every cycle you need about $15 \div 3 = 5$ warps. With real HBM latencies, you need many more, which is why the H100 can keep up to 64 warps per SM.
+
+How many warps actually fit depends on how many registers and how much shared memory each thread uses. The fraction of the maximum you achieve is called **occupancy**.
+
+One more warp-level effect worth knowing: **divergence**. If threads in the same warp take different branches of an `if`, the warp runs *both* paths one after the other, with some lanes switched off each time. Those idle lanes are wasted work.
+
+::: callout-tip
+## Think of it as
+
+A cook with several pots on the stove. While one simmers, stir another. With only one pot, the cook just stands there waiting.
+:::
+
+## CUDA cores vs Tensor Cores: FMA vs MMA
+
+Now for the units that do the math. Both kinds of core do the same basic thing, *multiply and add to a running total*. The difference is how much they do at once.
+
+**FMA (fused multiply-add)** is one instruction that computes, for single numbers,
+
+$$
+d = a \times b + c
+$$
+
+"Fused" means the multiply and add happen as one step with a single rounding at the end, so it's both faster and more accurate than two separate instructions. A **CUDA core** does one FMA per clock. A warp's `FFMA` instruction does 32 of them at once, one per lane. A dot product is just a chain of FMAs:
+
+``` c
+float sum = 0;
+for (int k = 0; k < K; k++)
+    sum = a[k] * b[k] + sum;   // one FMA per iteration
+```
+
+**MMA (matrix multiply-accumulate)** is one instruction that computes, for small **tiles** of matrices,
+
+$$
+D = A \times B + C
+$$
+
+A **Tensor Core** executes MMAs. For example, the instruction `mma.sync.m16n8k16` multiplies a 16×16 tile by a 16×8 tile: that's $16 \times 8 \times 16 = 2{,}048$ FMAs from a single warp instruction. Hopper adds an even larger form, `wgmma`, issued by a **warpgroup** of 4 warps (one in each sub-partition), which can read its operands straight from shared memory.
+
+Here's the difference in action: both sides compute the same 16×16 output tile with $K = 16$, which is 4,096 FMAs.
+
+```{=html}
+<figure class="gpu-fig column-body-outset" data-fig="cores" aria-label="Race between 32 CUDA cores and one Tensor Core computing the same tile">
+<figcaption><b>Figure 5 · The race.</b> 32 CUDA cores do 32 FMAs per clock and need 128 clocks. One Tensor Core in the same sub-partition does 512 FP16 FMAs per clock and needs 8. Per SM, that's 128 vs 2,048 multiply-adds per clock: 16× more.</figcaption>
+</figure>
+```
+
+That gap is why the H100's peak numbers look so different depending on which unit you use:
+
+| Unit         | Format      | Peak TFLOPS (dense) |
+|--------------|-------------|--------------------:|
+| CUDA cores   | FP64        |                  34 |
+| CUDA cores   | FP32        |                  67 |
+| Tensor Cores | TF32        |                 495 |
+| Tensor Cores | BF16 / FP16 |                 989 |
+| Tensor Cores | FP8         |               1,979 |
+
+Neural networks are mostly matrix multiplies, so Tensor Cores carry nearly all the FLOPs. CUDA cores still handle everything else: activations, softmax, layer norm, indexing and any element-wise work.
+
+::: callout-note
+## Counting FLOPs
+
+One FMA counts as **2 FLOPs** (a multiply and an add). An $M \times N \times K$ matrix multiply has $M \cdot N \cdot K$ FMAs, so it costs $2MNK$ FLOPs. Note the capitalisation: **FLOPs** is a *count* of operations, **FLOPS** is a *rate* (per second).
+:::
+
+## The memory hierarchy
+
+We now know where the math happens. The harder problem is getting data *to* the math. An H100 has four tiers of memory, and the rule is the same as in any computer: **the closer to the cores, the faster, smaller and more expensive.**
+
+```{=html}
+<figure class="gpu-fig column-body-outset" data-fig="memory" aria-label="Animation of request latency to registers, shared memory, L2 and HBM">
+<figcaption><b>Figure 6 · How long a trip takes.</b> Four requests leave the SM at the same moment. The register read is back almost instantly, shared memory after about 30 cycles, L2 after about 260, and HBM after about 600. The dashed line is the edge of the die.</figcaption>
+</figure>
+```
+
+| Tier                | Size         | Latency (cycles, approx.) | Built from       |
+|---------------------|--------------|--------------------------:|------------------|
+| Registers           | 256 KB / SM  |                        ~1 | SRAM, inside SM  |
+| Shared memory / L1  | 256 KB / SM  |                       ~30 | SRAM, inside SM  |
+| L2 cache            | 50 MB        |                      ~260 | SRAM, on the die |
+| HBM3                | 80 GB        |                      ~600 | DRAM, off the die |
+
+Two pairs of terms are worth separating clearly.
+
+**SRAM vs DRAM.** These are two ways of building memory. **SRAM** stores each bit in a small circuit of about six transistors. It's fast and needs no refreshing, but it takes a lot of area, so you can only fit tens of megabytes on a chip. **DRAM** stores each bit as charge in one tiny capacitor. It's far denser, so you get gigabytes, but it's slower and must be refreshed constantly. **HBM** is DRAM stacked vertically and wired to the GPU through thousands of connections in a silicon interposer, which is how it reaches 3.35 TB/s.
+
+**Cache vs shared memory.** These live in the *same* 256 KB of SRAM in each SM. The difference is who's in charge. A **cache** (L1, L2) is managed by hardware: it keeps recently used data and guesses what you'll need. **Shared memory** is managed by you: your kernel explicitly copies a tile of data in, and every thread in the block can read it. Shared memory is how a block of threads *cooperates*.
+
+::: callout-tip
+## Think of it as
+
+Registers are what's in your hands. Shared memory is your desk. L2 is the bookshelf down the corridor. HBM is a warehouse across town: huge, but every trip costs time.
+:::
+
+The lesson for fast code: **load each byte from HBM once, then reuse it as many times as possible from SRAM.** The next two sections show why that matters so much.
+
+## Memory bandwidth vs FLOPs: the roofline
+
+Here's the most important pair of numbers on the spec sheet:
+
+-   **Compute:** 989 trillion BF16 FLOPs per second.
+-   **Memory bandwidth:** 3.35 trillion bytes per second from HBM.
+
+Divide one by the other: the H100 can do about **295 FLOPs in the time it takes to fetch one byte**. So whether a program is fast depends on how much work it does per byte it loads. That ratio is called **arithmetic intensity**:
+
+$$
+\text{intensity} = \frac{\text{FLOPs performed}}{\text{bytes moved from memory}}
+$$
+
+The speed you can actually reach is the lower of two limits:
+
+$$
+\text{achievable FLOPS} = \min\big(\underbrace{989\ \text{TFLOPS}}_{\text{compute roof}},\ \underbrace{3.35\ \text{TB/s} \times \text{intensity}}_{\text{memory roof}}\big)
+$$
+
+Plotted on log-log axes, this gives the **roofline**: a sloped line (memory limit) that meets a flat line (compute limit) at the **ridge point**, about 295 FLOPs per byte.
+
+```{=html}
+<figure class="gpu-fig column-body-outset" data-fig="roofline" aria-label="Interactive roofline model for the H100">
+<figcaption><b>Figure 7 · The roofline.</b> Drag the slider or pick a preset. Left of the ridge, the program is <i>memory-bound</i>: the HBM pipe is full and the Tensor Cores wait. Right of the ridge, it's <i>compute-bound</i>: the Tensor Cores are the limit.</figcaption>
+</figure>
+```
+
+The presets are real workloads:
+
+-   **Vector add in FP32:** read two 4-byte numbers, write one, do 1 FLOP. That's 1 FLOP per 12 bytes, about 0.3 TFLOPS. A 989 TFLOPS chip running at 0.03% of its peak, and there's nothing the kernel can do about it.
+-   **LLM decoding at batch size 1:** generating one token multiplies every weight matrix by a single vector. Each 2-byte BF16 weight is loaded once and used in one FMA (2 FLOPs), so intensity is about 1 FLOP/B. That's why token-by-token generation is memory-bound.
+-   **Decoding at batch size 64:** each weight loaded from HBM is now reused for 64 tokens, so intensity rises to about 64 FLOP/B. This is the whole reason inference servers batch requests together.
+-   **A big square matrix multiply** ($8192^3$ in BF16): intensity is about $n/3 \approx 2{,}731$ FLOP/B, well past the ridge. Compute-bound.
+
+::: callout-tip
+## Think of it as
+
+A kitchen with incredibly fast chefs and one narrow door for groceries. If each dish needs a lot of groceries, the chefs spend their time waiting at the door. Buying faster chefs won't help; you need dishes that do more cooking per grocery bag.
+:::
+
+## Putting it all together: one GEMM
+
+Everything so far comes together in the single most important operation in deep learning, the **GEMM** (GEneral Matrix Multiply):
+
+$$
+C = A \times B, \qquad A \in \mathbb{R}^{M \times K},\ B \in \mathbb{R}^{K \times N}
+$$
+
+Every `nn.Linear` layer is a GEMM. So are the $QK^\top$ and $\text{scores} \cdot V$ products in attention, and the MLP blocks of a transformer. Together, GEMMs make up the large majority of a model's FLOPs.
+
+Let's size a typical one: a linear layer with 4,096 inputs and outputs, applied to 2,048 tokens.
+
+``` python
+y = torch.nn.Linear(4096, 4096)(x)   # x: (2048, 4096) in bf16
+# underneath: Y = X @ W.T  →  M = 2048, K = 4096, N = 4096
+```
+
+| Quantity  | Formula                     | Value                    |
+|-----------|-----------------------------|--------------------------|
+| FLOPs     | $2MNK$                      | ≈ 68.7 GFLOPs            |
+| Bytes     | $2(MK + KN + MN)$           | ≈ 67 MB                  |
+| Intensity | FLOPs ÷ bytes               | ≈ 1,000 FLOP/B → compute-bound |
+| Ideal time | FLOPs ÷ 989 TFLOPS         | ≈ 70 µs                  |
+
+But that intensity only holds if each matrix is read from HBM **once**. A naive kernel, where every multiply-add fetches its two inputs from memory, does 2 FLOPs per 4 bytes: just 0.5 FLOP/B, deep in memory-bound territory. The trick that closes the gap is **tiling**.
+
+```{=html}
+<figure class="gpu-fig column-body-outset" data-fig="matmul" aria-label="Animation of a tiled GEMM moving tiles from HBM through L2 and shared memory to Tensor Cores">
+<figcaption><b>Figure 8 · A tiled GEMM.</b> One thread block owns one output tile of C (outlined). It walks along K: each step, the TMA copies a tile of A and a tile of B from HBM (copper) into shared memory, and the Tensor Cores multiply them into registers (violet). The next tile is already loading while the current one is computed. At the end, the finished tile is written back to HBM once.</figcaption>
+</figure>
+```
+
+Each thread block computes one tile of $C$, say 128×128, and loops over $K$ in chunks of 64:
+
+1.  The **TMA** copies a 128×64 tile of $A$ and a 64×128 tile of $B$ from HBM, through L2, into **shared memory**.
+2.  **Warps** load pieces of those tiles into their **registers**.
+3.  **Tensor Cores** run MMA instructions, accumulating into $C$ in registers.
+4.  After the last chunk, the finished $C$ tile is written back to HBM.
+
+Per step, the block loads $32$ KB and performs $2 \times 128 \times 128 \times 64 \approx 2.1$ million FLOPs: **64 FLOP/B**, 128 times more reuse than the naive version. Neighbouring blocks often need the same tiles of $A$ and $B$, and they find them in the 50 MB L2 cache instead of HBM, which pushes the effective intensity higher still.
+
+Notice the **double buffering** too: while one buffer in shared memory is being computed on, the next tile is already loading into the other. It's the same idea as warp switching in Figure 4: **overlap waiting with useful work.**
+
+Now every concept from this post has a job:
+
+```
+GEMM (one kernel launch)
+ └─ thread blocks          → spread across the 132 SMs
+     └─ warps / warpgroups → scheduled on the 4 sub-partitions, hiding latency
+         └─ MMA instructions on Tensor Cores
+             └─ thousands of FMAs each
+ data path: HBM → L2 → shared memory (TMA) → registers → Tensor Cores
+```
+
+This is what libraries like cuBLAS and CUTLASS do when you call `torch.matmul`. And **FlashAttention** is this same pattern applied to attention: it tiles $Q$, $K$ and $V$ through shared memory so the large $N \times N$ attention matrix never has to be written to HBM at all.
+
+## Cheat sheet
+
+Most confusion comes from mixing up the things you write in code with the things that physically exist on the chip.
+
+::: gpu-cheat
+::: sw
+#### Software: what your code creates
+
+Thread
+:   One running copy of your kernel, with its own variables and thread index.
+
+Warp
+:   32 consecutive threads that always execute the same instruction together.
+
+Lane
+:   A thread's position in its warp, 0 to 31 (threadIdx.x % 32).
+
+Thread block
+:   Up to 1,024 threads that share shared memory. Runs on one SM.
+:::
+
+::: hw
+#### Hardware: what is on the chip
+
+SM
+:   The building block, copied 132 times. Runs several blocks at once.
+
+Sub-partition
+:   A quarter of an SM: warp scheduler, registers, 32 FP32 lanes, 1 Tensor Core.
+
+CUDA core
+:   One FP32 unit. The 32 in a sub-partition are the lanes a warp's FP32 instruction runs on.
+
+Tensor Core
+:   A matrix engine that executes MMA instructions on tiles.
+:::
+:::
+
+::: gpu-tldr
+**The five ideas to remember**
+
+1.  A GPU wins on **throughput**: thousands of simple lanes doing the same instruction on different data.
+2.  Work is scheduled in **warps** of 32 threads. Many warps share the same lanes and take turns every cycle, which **hides memory latency**.
+3.  **Tensor Cores** do matrix tiles (MMA) instead of single numbers (FMA), which is where nearly all the FLOPs come from.
+4.  Memory is a **hierarchy**: tiny and fast SRAM (registers, shared memory, L2) close to the cores; huge and slow DRAM (HBM) far away.
+5.  Performance is set by **arithmetic intensity**: below about 295 FLOPs per byte you're limited by bandwidth, above it by compute. **Tiling** is how we climb the roofline.
+:::
+
+## Further reading
+
+-   [NVIDIA Hopper Architecture In-Depth](https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/): NVIDIA's own tour of the H100, including SM diagrams, TMA and the Tensor Core details.
+-   [CUDA C++ Programming Guide](https://docs.nvidia.com/cuda/cuda-c-programming-guide/): the reference for threads, blocks, warps and the memory hierarchy.
+-   [Making Deep Learning Go Brrrr From First Principles](https://horace.io/brrr_intro.html) by Horace He: a great follow-up on compute-, memory- and overhead-bound workloads.
+-   [Roofline: An Insightful Visual Performance Model](https://doi.org/10.1145/1498765.1498785) by Williams, Waterman and Patterson: the original roofline paper.
+-   [FlashAttention](https://arxiv.org/abs/2205.14135) by Dao et al.: tiling and SRAM reuse applied to attention.
+-   [CUTLASS](https://github.com/NVIDIA/cutlass): NVIDIA's open-source templates for writing tiled GEMM kernels.
+
+*Spec figures are from NVIDIA's [H100 product page](https://www.nvidia.com/en-us/data-center/h100/) and Hopper whitepaper, quoted dense (NVIDIA's Tensor Core figures are listed with sparsity, which doubles them). Latencies are approximate and vary with access pattern. The animations are simplified models, slowed down and scaled so each idea is visible.*
+
+```{=html}
+<script src="gpu-figs.js"></script>
+```
