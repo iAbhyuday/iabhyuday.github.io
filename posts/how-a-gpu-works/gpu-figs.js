@@ -12,6 +12,7 @@ function A(hex, a){
   hex = (hex||'#888').replace('#','');
   if (hex.length === 3) hex = hex.split('').map(c=>c+c).join('');
   const n = parseInt(hex,16);
+  if (C.light && a < 1) a = Math.min(1, a + (1 - a) * a * 1.1);
   return `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},${a})`;
 }
 const lerp=(a,b,u)=>a+(b-a)*u, clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -120,8 +121,8 @@ function drawSM(t){
     const flash = Math.sin(Math.PI*clamp(f/0.8,0,1));
     box(x0+8,y0+8,pw-16,26,{fill:A(C.warp,.12+Math.max(0,1-f*3)*.35),stroke:A(C.warp,.5),r:3});
     const wn=Math.floor(hash(c*11+p*97)*16);
-    txt('Warp scheduler',x0+16,y0+26,{size:12.5,weight:600});
-    txt(`issue → warp ${wn} · ${isT?'MMA (matrix)':'FFMA (fp32)'}`,x0+pw-16,y0+26,{size:12,align:'right',font:'mono',color:isT?C.tensor:C.cuda});
+    txt('Sub-partition '+p+' · scheduler',x0+16,y0+26,{size:12.5,weight:600});
+    txt(`warp ${wn} · ${isT?'MMA (matrix)':'FFMA (fp32)'}`,x0+pw-16,y0+26,{size:12,align:'right',font:'mono',color:isT?C.tensor:C.cuda});
     const by=y0+42, bh=140;
     box(x0+8,by,66,bh,{fill:A(C.mem,.08),stroke:A(C.mem,.5),r:3});
     for(let k=1;k<10;k++) line(x0+14,by+k*13,x0+68,by+k*13,A(C.mem,.25),1);
@@ -142,7 +143,6 @@ function drawSM(t){
     }
     txt('Tensor',tx+tw/2,by+bh-24,{size:12,align:'center',weight:600});
     txt('Core',tx+tw/2,by+bh-9,{size:12,align:'center',weight:600});
-    txt('sub-partition '+p,x0+pw-8,y0+ph-6,{size:10.5,align:'right',font:'mono',color:C.muted});
   }
   const sy=475;
   box(60,sy,780,92,{fill:A(C.mem,.12),stroke:A(C.mem,.6),r:5});
@@ -479,6 +479,7 @@ function pageBg(){
 function readTheme(el){
   const s = getComputedStyle(el), o = {};
   for (const k of ['surface','die','sm','line','ink','muted','cuda','tensor','warp','mem','idle']) o[k] = s.getPropertyValue('--g-'+k).trim();
+  o.light = el.classList.contains('light');
   return o;
 }
 function el(tag, attrs, html){ const e=document.createElement(tag); for(const k in (attrs||{})) e.setAttribute(k, attrs[k]); if(html!=null) e.innerHTML=html; return e; }

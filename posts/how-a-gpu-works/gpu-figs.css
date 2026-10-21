@@ -14,9 +14,9 @@
   color:var(--g-ink);
 }
 .gpu-fig.light{
-  --g-surface:#ffffff; --g-die:#f7f7f7; --g-sm:#e4e4e4; --g-line:#d4d4d4;
-  --g-ink:#333333; --g-muted:#777777;
-  --g-cuda:#2ca02c; --g-tensor:#9467bd; --g-warp:#1f77b4; --g-mem:#b8860b; --g-idle:#d62728;
+  --g-surface:#ffffff; --g-die:#f3f5f7; --g-sm:#d5dbe1; --g-line:#c3cad1;
+  --g-ink:#2b2f33; --g-muted:#5f6670;
+  --g-cuda:#2ca02c; --g-tensor:#9467bd; --g-warp:#1f77b4; --g-mem:#d49100; --g-idle:#d62728;
   --g-hair:rgba(0,0,0,.1);
 }
 .gpu-fig .gf-scroll{overflow-x:auto}
