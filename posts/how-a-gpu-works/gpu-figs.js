@@ -678,7 +678,7 @@ function watchTheme(){
   window.addEventListener('quarto-hrChanged', refresh);
 }
 function init(){
-  const bodyFont = 'Lato, "Helvetica Neue", Helvetica, Arial, sans-serif';
+  const bodyFont = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
   FONTS.body = bodyFont; FONTS.display = bodyFont;
   FONTS.mono = bodyFont;
   document.querySelectorAll('figure.gpu-fig[data-fig]').forEach(mount);
@@ -695,7 +695,7 @@ function init(){
     requestAnimationFrame(frame);
   }
   requestAnimationFrame(frame);
-  if (document.fonts && document.fonts.load) Promise.all(['400 14px Lato','700 14px Lato'].map(f=>document.fonts.load(f).catch(()=>{}))).then(()=>figs.forEach(render));
+
 }
 if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
 })();
