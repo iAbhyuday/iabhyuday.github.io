@@ -1,4 +1,5 @@
 /* Animated figures for "How a GPU Works", styled after distill.pub:
+   palette follows the D3 category colours; text uses the blog's Lato.
    figures sit directly on the page, hairline strokes, soft fills,
    quiet sans-serif labels, understated controls, gray captions.
    Tokens default to the dark page (darkly theme); gpu-figs.js adds
@@ -7,7 +8,7 @@
 .gpu-fig{
   --g-surface:#222222; --g-die:#2a2a2a; --g-sm:#3b3b3b; --g-line:#4a4a4a;
   --g-ink:#e4e4e4; --g-muted:#9b9b9b;
-  --g-cuda:#5cb8a5; --g-tensor:#b08ad8; --g-warp:#79a2d8; --g-mem:#e2a463; --g-idle:#e0796b;
+  --g-cuda:#4cbb73; --g-tensor:#a98be0; --g-warp:#5aa2e6; --g-mem:#f2c14e; --g-idle:#ef5f5f;
   --g-hair:rgba(255,255,255,.12);
   margin:2.5rem 0 2.75rem;
   color:var(--g-ink);
@@ -15,7 +16,7 @@
 .gpu-fig.light{
   --g-surface:#ffffff; --g-die:#f7f7f7; --g-sm:#e4e4e4; --g-line:#d4d4d4;
   --g-ink:#333333; --g-muted:#777777;
-  --g-cuda:#2a9d8f; --g-tensor:#8a5cc2; --g-warp:#3d78c2; --g-mem:#d4862a; --g-idle:#d1495b;
+  --g-cuda:#2ca02c; --g-tensor:#9467bd; --g-warp:#1f77b4; --g-mem:#b8860b; --g-idle:#d62728;
   --g-hair:rgba(0,0,0,.1);
 }
 .gpu-fig .gf-scroll{overflow-x:auto}
@@ -23,7 +24,7 @@
 .gpu-fig canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 
 /* controls: one quiet row under the figure */
-.gpu-fig .gf-bar,.gpu-fig .gf-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:4px 0;font-size:.82rem;color:var(--g-muted)}
+.gpu-fig .gf-bar,.gpu-fig .gf-ctl{font-family:Lato,"Helvetica Neue",Arial,sans-serif;display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:4px 0;font-size:.82rem;color:var(--g-muted)}
 .gpu-fig .gf-ctl{padding-top:0}
 .gpu-fig .gf-play{width:30px;height:30px;border-radius:50%;border:1px solid var(--g-line);background:transparent;color:var(--g-ink);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .gpu-fig .gf-play:hover{border-color:var(--g-muted)}
@@ -45,7 +46,7 @@
 .gpu-fig input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--g-ink);border:0}
 
 /* caption */
-.gpu-fig figcaption{margin-top:.6rem;font-size:.85rem;line-height:1.6;color:var(--g-muted);max-width:44rem}
+.gpu-fig figcaption{margin-top:.6rem;font-family:Lato,"Helvetica Neue",Arial,sans-serif;font-size:.85rem;line-height:1.6;color:var(--g-muted);max-width:44rem}
 .gpu-fig figcaption b{color:var(--g-ink);font-weight:600}
 .gpu-fig figcaption i{font-style:italic}
 
@@ -59,8 +60,8 @@
 .gpu-cheat{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem 2rem;margin:1rem 0 1.25rem}
 @media (max-width:720px){.gpu-cheat{grid-template-columns:minmax(0,1fr)}}
 .gpu-cheat h4{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;margin:0 0 .5rem;padding-bottom:.35rem;border-bottom:1px solid currentColor;opacity:.85}
-.gpu-cheat .sw h4{color:#79a2d8}
-.gpu-cheat .hw h4{color:#5cb8a5}
+.gpu-cheat .sw h4{color:#5aa2e6}
+.gpu-cheat .hw h4{color:#4cbb73}
 .gpu-cheat dl{display:grid;grid-template-columns:minmax(7.5em,auto) 1fr;gap:.45rem 1rem;margin:0;font-size:.95rem}
 .gpu-cheat dt{font-weight:600}
 .gpu-cheat dd{margin:0;min-width:0}
