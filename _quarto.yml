@@ -13,9 +13,11 @@ website:
 format:
   html:
     theme:
-      dark: darkly
-      light: flatly
+      dark: [darkly, distill-dark.scss]
+      light: [flatly, distill-light.scss]
     css: styles.css
+    grid:
+      body-width: 704px
 
 
 
