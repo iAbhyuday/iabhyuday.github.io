@@ -1,0 +1,163 @@
+---
+title: "{{TITLE}}"
+description: "{{DESCRIPTION}}"
+date: "{{DATE}}"
+author: "Abhyuday"
+categories: [{{CATEGORIES}}]
+# image: thumbnail.png   # 1200x800 screenshot of your best figure, shown on the home page
+resources:
+  - figs.js
+format:
+  html:
+    css: ../../assets/blog-components.css
+---
+
+<!--
+  STARTER POST · copied from _post-template by ./new-post.sh
+  The site already gives you: colours (morning paper / evening ink), Source Serif 4 +
+  Source Sans 3, gold headings in dark mode, the contents rail, the light/dark toggle.
+  This file shows the article components. Delete anything you don't use, and delete
+  these comments before publishing.
+
+  House style that worked for "How a GPU Works":
+  · Open with a concrete moment the reader recognises, then promise what they'll understand.
+  · Each section answers what / why / how, and connects to the section before it.
+  · Pick ONE analogy world for the whole post and keep it (the GPU post used a kitchen).
+  · Never use a term before it is introduced; forward references only as "we'll see later".
+  · Short paragraphs. One idea per section. A figure every section or two.
+  · End by returning to the opening moment, then Further reading.
+-->
+
+Open with a moment the reader has lived: the thing that works like a black box, or the sentence people nod along to without understanding. Two or three sentences.
+
+In this post, we'll open that box. Say what the running example is and how the post is built: each section answers *what* a part is, *why* it exists, and *how* it connects to the parts before it. Every figure is a small animation you can pause, restart, and sometimes play with.
+
+By the end, words like **term one**, **term two** and **term three** should feel concrete.
+
+## First idea: the one misconception to clear up
+
+Start with the comparison or misconception that makes everything else click.
+
+### A sub-point
+
+Keep paragraphs short. **Bold** the one phrase per paragraph a skimming reader should catch.
+
+```{=html}
+<figure class="blog-fig column-body-outset" data-fig="example" aria-label="Example animated figure: work items flowing through lanes">
+<figcaption><b>Figure 1 · Example figure.</b> Say what to watch for, in the order it happens. Name colours by what they mean (blue items, green lanes). Replace this with your own figure in figs.js.</figcaption>
+</figure>
+```
+
+::: callout-tip
+## Think of it as
+
+The analogy for this section, in the post's one analogy world. Two or three sentences.
+:::
+
+## Second idea: the thing itself
+
+Introduce the main object. After its parts have been named, a numbers card works as a map of the rest of the post. Each tile links to the section that explains it (link to a section with `#its-heading-in-lowercase-with-dashes`).
+
+```{=html}
+<nav class="post-facts" aria-label="By the numbers">
+  <div class="gsc-head">The subject by the numbers</div>
+  <div class="gsc-grid">
+    <a class="gsc-tile" href="#second-idea-the-thing-itself"><b>132</b><span>what the number counts</span><small>Section that explains it</small></a>
+    <a class="gsc-tile" href="#third-idea-how-the-pieces-fit"><b>50 MB</b><span>another quantity</span><small>Another section</small></a>
+    <a class="gsc-tile" href="#putting-it-all-together"><b>3.35 TB/s</b><span>a rate</span><small>Putting it all together</small></a>
+  </div>
+</nav>
+```
+
+A table when the reader needs to compare:
+
+| | Option A | Option B |
+|---|---|---|
+| Property | value | value |
+| Property | value | value |
+
+::: callout-note
+## A detail for the curious
+
+Side facts that are true but not essential go in a note like this, so the main text stays light.
+:::
+
+## Third idea: how the pieces fit
+
+Show how things nest or flow. Each box is made of the boxes inside it; the row underneath is a path.
+
+```{=html}
+<figure class="post-stack" aria-label="How the pieces nest, and the path data takes">
+  <div class="gs-box gs-l1">
+    <div class="gs-head"><span class="gs-name">Biggest unit</span><span class="gs-where">where it lives</span></div>
+    <div class="gs-box gs-l2">
+      <div class="gs-head"><span class="gs-name">Made of these</span><span class="gs-where">where they run</span></div>
+      <div class="gs-box gs-l3">
+        <div class="gs-head"><span class="gs-name">Made of these</span><span class="gs-where">where they run</span></div>
+      </div>
+    </div>
+  </div>
+  <div class="gs-path" aria-label="Path">
+    <span class="gs-path-label">Path</span>
+    <ol>
+      <li class="gs-mem"><span class="gs-chip">Far</span></li>
+      <li class="gs-mem"><span class="gs-chip">Closer <small>via something</small></span></li>
+      <li class="gs-tc"><span class="gs-chip">Where the work happens</span></li>
+    </ol>
+  </div>
+</figure>
+```
+
+## Putting it all together
+
+Tie every concept to its job in one worked example, with real numbers.
+
+## Cheat sheet
+
+One line on what readers usually mix up.
+
+::: post-cheat
+::: sw
+#### Column one
+
+Term
+:   One-line definition.
+
+Term
+:   One-line definition.
+:::
+
+::: hw
+#### Column two
+
+Term
+:   One-line definition.
+
+Term
+:   One-line definition.
+:::
+:::
+
+::: post-tldr
+**The ideas to remember**
+
+1.  First idea, one sentence.
+2.  Second idea, one sentence.
+3.  Third idea, one sentence.
+:::
+
+## Back to where we started
+
+Return to the opening moment and show that it now has a picture. Point to what comes next.
+
+## Further reading
+
+-   [Primary source](https://example.com): one line on why it's worth reading.
+-   [Another source](https://example.com): one line.
+
+*Say where the figures come from and what the animations simplify.*
+
+```{=html}
+<script src="../../assets/blog-figs.js"></script>
+<script src="figs.js"></script>
+```
