@@ -48,8 +48,8 @@ ul.task-list li input[type="checkbox"] {
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting-dark-b626d73c4c936ccc3cb08be7d45d1df6.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
 <script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../../site_libs/bootstrap/bootstrap-4fbbcbdfe6d8b0408ae4c84a8142b94e.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="../../site_libs/bootstrap/bootstrap-dark-9a5ea63f5268118b06850fa789f5dd2c.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../../site_libs/bootstrap/bootstrap-4c9d6f651d1129b61bca596f1338327b.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../../site_libs/bootstrap/bootstrap-dark-d2c1893a1eca5f45ada5581626cc7028.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -354,9 +354,11 @@ ul.task-list li input[type="checkbox"] {
 @media (max-width:1099px){
   .toc-rail{top:auto;bottom:max(18px, env(safe-area-inset-bottom, 0px));transform:none}
   .toc-rail ol{display:none}
+  .toc-rail{transition:transform .25s ease, opacity .25s ease}
+  .toc-rail.tuck:not(.open){transform:translateY(90px);opacity:0;pointer-events:none}
   .toc-rail.open ol{display:flex;position:absolute;bottom:54px;left:0;width:min(300px, calc(100vw - 40px));background:var(--d-panel);box-shadow:0 10px 30px var(--d-shadow), 0 0 0 1px var(--d-rule)}
   .toc-rail.open .lbl{opacity:1;width:auto;white-space:normal}
-  .toc-rail-btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:22px;border:1px solid var(--d-rule2);background:var(--d-panel);color:var(--d-ink);font:inherit;font-size:.86rem;box-shadow:0 6px 18px var(--d-shadow);cursor:pointer}
+  .toc-rail-btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 14px;border-radius:22px;border:1px solid var(--d-rule2);background:var(--d-panel);color:var(--d-ink);font:inherit;font-size:.86rem;box-shadow:0 6px 18px var(--d-shadow);cursor:pointer}
 }
 @media (prefers-reduced-motion:reduce){.toc-rail *{transition:none!important}}
 </style>
@@ -387,9 +389,11 @@ ul.task-list li input[type="checkbox"] {
     document.addEventListener('keydown', function(e){ if (e.key === 'Escape') { nav.classList.remove('open'); btn.setAttribute('aria-expanded','false'); } });
     document.addEventListener('click', function(e){ if (!nav.contains(e.target)) { nav.classList.remove('open'); btn.setAttribute('aria-expanded','false'); } });
     nav.appendChild(ol); nav.appendChild(btn); document.body.appendChild(nav);
-    var ticking = false;
+    var ticking = false, lastY = window.scrollY;
     function update(){
       ticking = false;
+      var y = window.scrollY;
+      if (Math.abs(y - lastY) > 6) { nav.classList.toggle('tuck', y > lastY && y > 240); lastY = y; }
       var cur = 0;
       for (var i = 0; i < items.length; i++) { if (items[i].h.getBoundingClientRect().top < window.innerHeight * 0.3) cur = i; }
       items.forEach(function(it, i){ it.li.classList.toggle('active', i === cur); });
