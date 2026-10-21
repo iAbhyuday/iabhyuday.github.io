@@ -1,0 +1,69 @@
+<!-- Substack-style contents rail: short lines on the left that expand into the
+     section list on hover or focus; a "Contents" button on small screens.
+     It is fixed to the viewport, so wide figures never push it around. -->
+<style>
+.toc-rail{position:fixed;left:max(20px, env(safe-area-inset-left, 0px));top:50%;transform:translateY(-50%);z-index:1030;font-size:.86rem;line-height:1.35}
+.toc-rail[hidden]{display:none!important}
+.toc-rail ol{list-style:none;margin:0;padding:10px 12px;display:flex;flex-direction:column;gap:9px;border-radius:12px;max-height:72vh;overflow:hidden auto;transition:background .2s, box-shadow .2s}
+.toc-rail li{margin:0}
+.toc-rail a{display:flex;align-items:center;gap:12px;text-decoration:none!important;border:none!important;color:var(--d-muted)!important;min-height:14px}
+.toc-rail .bar{flex:0 0 auto;width:20px;height:2px;border-radius:2px;background:var(--d-rule2);transition:width .2s, background .2s}
+.toc-rail li.l3 .bar{width:12px;margin-left:8px}
+.toc-rail li.active .bar{width:28px;background:var(--d-accent)}
+.toc-rail li.l3.active .bar{width:20px}
+.toc-rail .lbl{opacity:0;width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;transition:opacity .15s}
+.toc-rail li.active a{color:var(--d-strong)!important}
+.toc-rail:hover ol,.toc-rail:focus-within ol{background:var(--d-panel);box-shadow:0 10px 30px var(--d-shadow), 0 0 0 1px var(--d-rule)}
+.toc-rail:hover .lbl,.toc-rail:focus-within .lbl{opacity:1;width:230px}
+.toc-rail a:hover .bar{background:var(--d-accent)}
+.toc-rail a:focus-visible{outline:2px solid var(--d-accent);outline-offset:3px;border-radius:3px}
+.toc-rail-btn{display:none}
+@media (max-width:1099px){
+  .toc-rail{top:auto;bottom:max(18px, env(safe-area-inset-bottom, 0px));transform:none}
+  .toc-rail ol{display:none}
+  .toc-rail.open ol{display:flex;position:absolute;bottom:54px;left:0;width:min(300px, calc(100vw - 40px));background:var(--d-panel);box-shadow:0 10px 30px var(--d-shadow), 0 0 0 1px var(--d-rule)}
+  .toc-rail.open .lbl{opacity:1;width:auto;white-space:normal}
+  .toc-rail-btn{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:0 16px;border-radius:22px;border:1px solid var(--d-rule2);background:var(--d-panel);color:var(--d-ink);font:inherit;font-size:.86rem;box-shadow:0 6px 18px var(--d-shadow);cursor:pointer}
+}
+@media (prefers-reduced-motion:reduce){.toc-rail *{transition:none!important}}
+</style>
+<script>
+(function(){
+  function build(){
+    var main = document.querySelector('main.content');
+    if (!main) return;
+    var heads = Array.prototype.filter.call(main.querySelectorAll('h2.anchored, h3.anchored'), function(h){ return !h.closest('.callout, figure, .gpu-fig'); });
+    if (heads.length < 3) return;
+    var nav = document.createElement('nav'); nav.className = 'toc-rail'; nav.setAttribute('aria-label', 'Contents');
+    var btn = document.createElement('button'); btn.type = 'button'; btn.className = 'toc-rail-btn'; btn.setAttribute('aria-expanded', 'false');
+    btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 6h16M4 12h11M4 18h14"/></svg>Contents';
+    var ol = document.createElement('ol');
+    var items = heads.map(function(h){
+      var id = h.id || (h.closest('section') && h.closest('section').id) || h.getAttribute('data-anchor-id');
+      var li = document.createElement('li'); li.className = h.tagName === 'H3' ? 'l3' : 'l2';
+      var a = document.createElement('a'); a.href = '#' + id;
+      var text = (h.textContent || '').replace(/\s+/g, ' ').trim();
+      a.setAttribute('title', text);
+      a.innerHTML = '<span class="bar" aria-hidden="true"></span><span class="lbl"></span>';
+      a.querySelector('.lbl').textContent = text;
+      a.addEventListener('click', function(){ nav.classList.remove('open'); btn.setAttribute('aria-expanded','false'); });
+      li.appendChild(a); ol.appendChild(li);
+      return {h: h, li: li};
+    });
+    btn.addEventListener('click', function(){ var o = nav.classList.toggle('open'); btn.setAttribute('aria-expanded', String(o)); });
+    document.addEventListener('keydown', function(e){ if (e.key === 'Escape') { nav.classList.remove('open'); btn.setAttribute('aria-expanded','false'); } });
+    document.addEventListener('click', function(e){ if (!nav.contains(e.target)) { nav.classList.remove('open'); btn.setAttribute('aria-expanded','false'); } });
+    nav.appendChild(ol); nav.appendChild(btn); document.body.appendChild(nav);
+    var ticking = false;
+    function update(){
+      ticking = false;
+      var cur = 0;
+      for (var i = 0; i < items.length; i++) { if (items[i].h.getBoundingClientRect().top < window.innerHeight * 0.3) cur = i; }
+      items.forEach(function(it, i){ it.li.classList.toggle('active', i === cur); });
+    }
+    window.addEventListener('scroll', function(){ if (!ticking) { ticking = true; requestAnimationFrame(update); } }, {passive:true});
+    update();
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
+})();
+</script>
