@@ -16,6 +16,8 @@ format:
       dark: [darkly, distill-dark.scss]
       light: [flatly, distill-light.scss]
     css: styles.css
+    toc: false
+    include-after-body: toc-rail.html
     grid:
       body-width: 704px
 

@@ -5,8 +5,6 @@ date: "2026-10-21"
 author: "Abhyuday"
 categories: [gpu, deep-learning, hardware]
 image: thumbnail.png
-toc: true
-toc-depth: 2
 resources:
   - gpu-figs.js
 format:
