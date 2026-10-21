@@ -84,8 +84,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting-dark-bd214ee8a11bbafa21949b7e7cbab4ab.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
 <script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../../site_libs/bootstrap/bootstrap-d1776b11deff18fc658dff9ec1e8bd1d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="../../site_libs/bootstrap/bootstrap-dark-9b0fc61af3f9dc2874153f629b3f5ae8.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../../site_libs/bootstrap/bootstrap-35efe23a430f3fbc287cc91ab3874389.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../../site_libs/bootstrap/bootstrap-dark-867004202be20c9773a02d19aeda18f9.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -400,10 +400,11 @@ window.Quarto = {
 <hr>
 <p>Every time we call <code>model(x)</code> in PyTorch, billions of multiply-adds run on a GPU in a few milliseconds. Most of us treat that GPU as a black box that makes things fast. That works until it doesn’t: until a training run is mysteriously slow, an inference server can’t keep up, or someone says <em>“this kernel is memory-bound”</em> and we nod without really knowing what it means.</p>
 <p>In this blog post, we’ll open the box. We’ll use NVIDIA’s <strong>H100</strong> as our running example and build up a mental model one idea at a time. Each section answers <em>what</em> a part is, <em>why</em> it exists, and <em>how</em> it connects to the parts before it. Every figure is a small animation you can pause, restart, and in some cases play with.</p>
+<p>Here are the numbers we’ll make sense of along the way:</p>
 <div class="gpu-specs">
 <p><span><strong>132</strong> SMs</span> <span><strong>16,896</strong> CUDA cores</span> <span><strong>528</strong> Tensor Cores</span> <span><strong>50 MB</strong> L2 cache</span> <span><strong>80 GB</strong> HBM3 · <strong>3.35 TB/s</strong></span> <span><strong>989</strong> TFLOPS BF16</span></p>
 </div>
-<p>By the end, these words should feel concrete: <strong>SM, warp, lane, CUDA core, Tensor Core, HBM, SRAM, cache, shared memory, memory bandwidth, FLOPs</strong>, and the two acronyms you’ll see in every performance discussion, <strong>FMA</strong> and <strong>GEMM</strong>.</p>
+<p>By the end, words like <strong>SM</strong>, <strong>warp</strong>, <strong>Tensor Core</strong> and <strong>memory-bound</strong> should feel concrete, along with the jargon around them.</p>
 <section id="cpu-vs-gpu-what-a-core-really-means" class="level2 page-columns page-full">
 <h2 class="anchored" data-anchor-id="cpu-vs-gpu-what-a-core-really-means">CPU vs GPU: what a “core” really means</h2>
 <p>Spec sheets make the comparison look absurd: a big server CPU has around 64 cores, and an H100 has <strong>16,896 CUDA cores</strong>. Is a GPU really 250 times bigger? No.&nbsp;The two companies are counting different things, and untangling that is the best way into how a GPU works.</p>
@@ -444,7 +445,7 @@ window.Quarto = {
 <tr class="odd">
 <td>Instruction streams</td>
 <td>1–2 threads</td>
-<td>up to 64 warps (2,048 threads) resident</td>
+<td>up to 2,048 threads resident</td>
 </tr>
 <tr class="even">
 <td>FP32 lanes</td>
@@ -475,12 +476,7 @@ window.Quarto = {
 </table>
 <p>Two lessons come out of Figure 1.</p>
 <p><strong>A single GPU thread is slow.</strong> It runs at half the clock, has no out-of-order execution, and waits much longer for memory. For one long chain of dependent steps, where each step needs the previous answer, the CPU core wins by an order of magnitude. Branchy, sequential, latency-sensitive work belongs on the CPU: parsing, tokenisation, data-loading logic, the Python that orchestrates your training loop.</p>
-<p><strong>The GPU wins on independent work, and mostly by scale.</strong> On plain FP32 math, one SM is only about 2× one CPU core. The big gap comes from three things stacked together:</p>
-<ol type="1">
-<li><strong>More units:</strong> 132 SMs instead of tens of cores, because each SM spends its area on lanes instead of on making one thread fast.</li>
-<li><strong>Cheap latency hiding:</strong> instead of big caches and prediction, an SM keeps many warps ready and switches between them every cycle (we’ll see this in Figure 5).</li>
-<li><strong>Tensor Cores:</strong> dedicated matrix units that multiply throughput by another ~16× for deep learning math (Figure 6).</li>
-</ol>
+<p><strong>The GPU wins on independent work, and mostly by scale.</strong> On plain FP32 math, one SM is only about 2× one CPU core. The big gap comes from having 132 SMs, from hiding memory waits cheaply instead of avoiding them, and from dedicated matrix units called Tensor Cores. Each of those gets its own section below.</p>
 <p>Put together, an H100 does roughly 5× the FP32 throughput of a 64-core server CPU’s vector units, and roughly 80× once its Tensor Cores run BF16.</p>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -492,21 +488,21 @@ window.Quarto = {
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>A CPU core is a brilliant chef who can cook anything and never wastes a second. An SM is a kitchen line of 128 cooks who all do the same step at the same moment. Ask for one complicated dish and the chef wins easily. Ask for 2,000 identical plates and the line wins, and the GPU has 132 such lines.</p>
+<p>A CPU core is a master chef who can cook anything and never wastes a second. An SM is a kitchen line of cooks who all make the same move at the same moment. Ask for one complicated dish and the chef wins easily. Ask for 2,000 identical plates and the line wins, and an H100 has 132 such lines. We’ll keep this kitchen through the rest of the post.</p>
 </div>
 </div>
 <p>Deep learning is the 2,000-plates case. A matrix multiply is millions of independent multiply-adds, so every design decision in the rest of this post exists to keep those lanes busy.</p>
 </section>
 </section>
-<section id="the-chip-132-workshops-and-a-warehouse" class="level2 page-columns page-full">
-<h2 class="anchored" data-anchor-id="the-chip-132-workshops-and-a-warehouse">The chip: 132 workshops and a warehouse</h2>
+<section id="the-chip-132-kitchen-lines-and-a-warehouse" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="the-chip-132-kitchen-lines-and-a-warehouse">The chip: 132 kitchen lines and a warehouse</h2>
 <p>Let’s start from the outside. An H100 is a single large piece of silicon, the <strong>GH100 die</strong>, sitting next to stacks of memory on the same package.</p>
 <figure class="gpu-fig column-body-outset figure" data-fig="chip" aria-label="Animated diagram of the GH100 die with SMs, L2 cache and HBM stacks">
 <figcaption><b>Figure 2 · The chip.</b> Blue squares are <i>thread blocks</i> (chunks of your work). The GigaThread engine hands each one to an SM with free room, and that SM lights up green while it runs. Gold dots are data streaming from the HBM stacks into the L2 cache, which every SM shares.</figcaption>
 </figure>
 <p>Three parts matter here.</p>
 <p><strong>Streaming Multiprocessors (SMs).</strong> The SM is the basic building block: the unit that gets copied over and over. The full GH100 die has 144 SMs arranged in 8 groups called GPCs (graphics processing clusters). A die this big almost always has a few manufacturing defects, so NVIDIA switches off the faulty SMs and sells the chip with <strong>132 enabled</strong>. That’s the dashed outlines in the figure.</p>
-<p><strong>L2 cache (50 MB).</strong> A shared stockroom in the middle of the chip. Every SM can read from it, and it’s much faster to reach than off-chip memory.</p>
+<p><strong>L2 cache (50 MB).</strong> A shared pantry in the middle of the chip. Every SM can read from it, and it’s much faster to reach than off-chip memory.</p>
 <p><strong>HBM3 (80 GB).</strong> High Bandwidth Memory: five stacks of DRAM chips sitting right next to the die. This is where your model weights, activations and KV cache live. It’s big, but it’s off the die, so it’s the slowest tier.</p>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -518,7 +514,7 @@ window.Quarto = {
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>A factory with 132 identical workshops (SMs), a shared stockroom in the middle (L2), and warehouses next door (HBM). A dispatcher hands out work orders (thread blocks) to any workshop with free space.</p>
+<p>A restaurant with 132 kitchen lines (SMs), a shared pantry in the middle (L2), and a warehouse next door (HBM). The head waiter hands each order (a thread block) to any line with free space.</p>
 </div>
 </div>
 </section>
@@ -579,10 +575,6 @@ add&lt;&lt;&lt;4096, 256&gt;&gt;&gt;(a, b, c, n);</code></pre>
 <td>L1 + shared memory</td>
 <td>256 KB (up to 228 KB shared)</td>
 </tr>
-<tr class="odd">
-<td>Max resident threads</td>
-<td>2,048 (64 warps)</td>
-</tr>
 </tbody>
 </table>
 <p>One rule to keep in mind: <strong>cores can only compute on values in registers.</strong> Everything else, whether shared memory, L2 or HBM, must be loaded into registers first. That rule drives the whole memory story later on.</p>
@@ -596,7 +588,7 @@ add&lt;&lt;&lt;4096, 256&gt;&gt;&gt;(a, b, c, n);</code></pre>
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>A workshop with four workbenches. Each bench has a foreman (scheduler), a tray of parts at hand (registers), 32 workers who always make the same move together (CUDA cores), and one specialised machine (Tensor Core). One supply shelf serves all four benches (shared memory).</p>
+<p>One kitchen line split into four stations. Each station has a head cook calling out the next step (warp scheduler), ingredients within arm’s reach (registers), 32 cooks who always make the same move together (CUDA cores), and one industrial mixer for big batches (Tensor Core). One shared counter serves all four stations (shared memory).</p>
 </div>
 </div>
 </section>
@@ -606,13 +598,14 @@ add&lt;&lt;&lt;4096, 256&gt;&gt;&gt;(a, b, c, n);</code></pre>
 <figure class="gpu-fig column-body-outset figure" data-fig="threads" aria-label="Animation mapping 256 threads to 8 warps, 4 sub-partitions and 32 lanes">
 <figcaption><b>Figure 4 · Threads → warps → lanes.</b> A block of 256 threads runs on one SM in three steps. Follow the gold thread: thread 52 is in warp 1 at lane 20. It always runs on lane 20 of sub-partition 1, but only on the cycles when its warp is picked.</figcaption>
 </figure>
-<p><strong>Step 1: threads become warps.</strong> The SM cuts every block into groups of <strong>32 consecutive threads</strong>, called <strong>warps</strong>. Threads 0–31 form warp 0, threads 32–63 form warp 1, and so on. A warp is the unit the hardware actually schedules: all 32 threads in a warp execute the <strong>same instruction at the same time</strong>, each on its own data. NVIDIA calls this SIMT, <em>single instruction, multiple threads</em>.</p>
+<p><strong>Step 1: threads become warps.</strong> Take a block of 256 threads, like the one in the figure. The SM cuts it into groups of <strong>32 consecutive threads</strong>, called <strong>warps</strong>: 8 warps in all. Threads 0–31 form warp 0, threads 32–63 form warp 1, and so on. A warp is the unit the hardware actually schedules: all 32 threads in a warp execute the <strong>same instruction at the same time</strong>, each on its own data. NVIDIA calls this SIMT, <em>single instruction, multiple threads</em>.</p>
 <p>A thread’s position inside its warp, from 0 to 31, is its <strong>lane</strong>:</p>
 <pre class="cuda"><code>int warp = threadIdx.x / 32;   // thread 52 → warp 1
 int lane = threadIdx.x % 32;   // thread 52 → lane 20</code></pre>
 <p><strong>Step 2: warps go to sub-partitions.</strong> Each warp is assigned to one of the four sub-partitions and stays there for its whole life. Its registers are allocated in that sub-partition’s register file. Our 8 warps get spread 2 per sub-partition.</p>
 <p><strong>Step 3: warps take turns on the lanes.</strong> Each sub-partition’s 32 FP32 CUDA cores are the 32 <strong>lanes</strong> of its execution unit. When the scheduler issues an FP32 instruction for a warp, the thread in lane <em>i</em> runs on lane <em>i</em>. On the next cycle, the scheduler may pick a <em>different</em> warp, and that warp uses the same 32 lanes.</p>
 <p>So <strong>a CUDA core is not “a thread’s core”</strong>. Up to 16 warps (512 threads) can live on one sub-partition, all sharing the same 32 lanes. A thread’s state isn’t stored in a core; it’s stored in the <strong>register file</strong>. That’s why switching between warps is free: nothing has to be saved or restored, the scheduler just points the lanes at a different warp’s registers.</p>
+<p>Because a warp shares one instruction, branches cost something. If threads in the same warp take different sides of an <code>if</code>, the warp runs <em>both</em> paths one after the other, with some lanes switched off each time. This is called <strong>divergence</strong>, and those idle lanes are wasted work.</p>
 <div class="callout callout-style-default callout-note callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -641,30 +634,6 @@ int lane = threadIdx.x % 32;   // thread 52 → lane 20</code></pre>
 </div>
 </div>
 </section>
-<section id="why-so-many-warps-hiding-memory-latency" class="level2 page-columns page-full">
-<h2 class="anchored" data-anchor-id="why-so-many-warps-hiding-memory-latency">Why so many warps? Hiding memory latency</h2>
-<p>Why would the hardware bother keeping 16 warps on a sub-partition when only one can run per cycle? Because of memory. A load from HBM takes <strong>hundreds of cycles</strong> to come back. If the scheduler had only one warp, it would sit idle for all of them.</p>
-<p>Try it below. Each warp in this model does two math instructions, then a load that stalls for 12 cycles (real HBM latency is closer to 500+, but 12 keeps it watchable).</p>
-<figure class="gpu-fig column-body-outset figure" data-fig="warps" aria-label="Interactive simulation of a warp scheduler hiding memory latency">
-<figcaption><b>Figure 5 · Latency hiding.</b> Each row is a warp; its 32 bars are its threads. Red cells in the issue-slot strip are wasted cycles. With 1 or 2 warps the scheduler is mostly idle. Move the slider to 5 or more and the red disappears: while one warp waits on memory, another is ready to run.</figcaption>
-</figure>
-<p>The arithmetic is simple. One warp keeps the scheduler busy for 3 cycles out of every 15 (3 instructions + 12 waiting). To fill every cycle you need about <span class="math inline">\(15 \div 3 = 5\)</span> warps. With real HBM latencies, you need many more, which is why the H100 can keep up to 64 warps per SM.</p>
-<p>How many warps actually fit depends on how many registers and how much shared memory each thread uses. The fraction of the maximum you achieve is called <strong>occupancy</strong>.</p>
-<p>One more warp-level effect worth knowing: <strong>divergence</strong>. If threads in the same warp take different branches of an <code>if</code>, the warp runs <em>both</em> paths one after the other, with some lanes switched off each time. Those idle lanes are wasted work.</p>
-<div class="callout callout-style-default callout-tip callout-titled">
-<div class="callout-header d-flex align-content-center">
-<div class="callout-icon-container">
-<i class="callout-icon"></i>
-</div>
-<div class="callout-title-container flex-fill">
-<span class="screen-reader-only">Tip</span>Think of it as
-</div>
-</div>
-<div class="callout-body-container callout-body">
-<p>A cook with several pots on the stove. While one simmers, stir another. With only one pot, the cook just stands there waiting.</p>
-</div>
-</div>
-</section>
 <section id="cuda-cores-vs-tensor-cores-fma-vs-mma" class="level2 page-columns page-full">
 <h2 class="anchored" data-anchor-id="cuda-cores-vs-tensor-cores-fma-vs-mma">CUDA cores vs Tensor Cores: FMA vs MMA</h2>
 <p>Now for the units that do the math. Both kinds of core do the same basic thing, <em>multiply and add to a running total</em>. The difference is how much they do at once.</p>
@@ -683,7 +652,7 @@ D = A \times B + C
 <p>A <strong>Tensor Core</strong> executes MMAs. For example, the instruction <code>mma.sync.m16n8k16</code> multiplies a 16×16 tile by a 16×8 tile: that’s <span class="math inline">\(16 \times 8 \times 16 = 2{,}048\)</span> FMAs from a single warp instruction. Hopper adds an even larger form, <code>wgmma</code>, issued by a <strong>warpgroup</strong> of 4 warps (one in each sub-partition), which can read its operands straight from shared memory.</p>
 <p>Here’s the difference in action: both sides compute the same 16×16 output tile with <span class="math inline">\(K = 16\)</span>, which is 4,096 FMAs.</p>
 <figure class="gpu-fig column-body-outset figure" data-fig="cores" aria-label="Race between 32 CUDA cores and one Tensor Core computing the same tile">
-<figcaption><b>Figure 6 · The race.</b> 32 CUDA cores do 32 FMAs per clock and need 128 clocks. One Tensor Core in the same sub-partition does 512 FP16 FMAs per clock and needs 8. Per SM, that's 128 vs 2,048 multiply-adds per clock: 16× more.</figcaption>
+<figcaption><b>Figure 5 · The race.</b> 32 CUDA cores do 32 FMAs per clock and need 128 clocks. One Tensor Core in the same sub-partition does 512 FP16 FMAs per clock and needs 8. Per SM, that's 128 vs 2,048 multiply-adds per clock: 16× more.</figcaption>
 </figure>
 <p>That gap is why the H100’s peak numbers look so different depending on which unit you use:</p>
 <table class="caption-top table">
@@ -737,9 +706,33 @@ D = A \times B + C
 </div>
 </div>
 </section>
+<section id="why-so-many-warps-hiding-memory-latency" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="why-so-many-warps-hiding-memory-latency">Why so many warps? Hiding memory latency</h2>
+<p>Why would the hardware bother keeping 16 warps on a sub-partition when only one can run per cycle? Because of memory. A load from HBM takes <strong>hundreds of cycles</strong> to come back. If the scheduler had only one warp, it would sit idle for all of them.</p>
+<p>Try it below. Each warp in this model does two math instructions, then a load that stalls for 12 cycles (real HBM latency is closer to 500+, but 12 keeps it watchable).</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="warps" aria-label="Interactive simulation of a warp scheduler hiding memory latency">
+<figcaption><b>Figure 6 · Latency hiding.</b> Each row is a warp; its 32 bars are its threads. Red cells in the issue-slot strip are wasted cycles. With 1 or 2 warps the scheduler is mostly idle. Move the slider to 5 or more and the red disappears: while one warp waits on memory, another is ready to run.</figcaption>
+</figure>
+<p>The arithmetic is simple. One warp keeps the scheduler busy for 3 cycles out of every 15 (3 instructions + 12 waiting). To fill every cycle you need about <span class="math inline">\(15 \div 3 = 5\)</span> warps. With real HBM latencies, you need many more, which is why the H100 can keep up to 64 warps per SM.</p>
+<p>How many warps actually fit depends on how many registers and how much shared memory each thread uses. The fraction of the maximum you achieve is called <strong>occupancy</strong>.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Each cook has several pots on the stove. While one simmers, stir another. With only one pot, the cook just stands there waiting.</p>
+</div>
+</div>
+<p>Those slow loads come from HBM, at the far end of a whole hierarchy of memories. That’s where we go next.</p>
+</section>
 <section id="the-memory-hierarchy" class="level2 page-columns page-full">
 <h2 class="anchored" data-anchor-id="the-memory-hierarchy">The memory hierarchy</h2>
-<p>We now know where the math happens. The harder problem is getting data <em>to</em> the math. An H100 has four tiers of memory, and the rule is the same as in any computer: <strong>the closer to the cores, the faster, smaller and more expensive.</strong></p>
+<p>We now know where the math happens and why the SM juggles so many warps. The harder problem is getting data <em>to</em> the math. An H100 has four tiers of memory, and the rule is the same as in any computer: <strong>the closer to the cores, the faster, smaller and more expensive.</strong></p>
 <figure class="gpu-fig column-body-outset figure" data-fig="memory" aria-label="Animation of request latency to registers, shared memory, L2 and HBM">
 <figcaption><b>Figure 7 · How long a trip takes.</b> Four requests leave the SM at the same moment. The register read is back almost instantly, shared memory after about 30 cycles, L2 after about 260, and HBM after about 600. The dashed line is the edge of the die.</figcaption>
 </figure>
@@ -798,7 +791,7 @@ D = A \times B + C
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>Registers are what’s in your hands. Shared memory is your desk. L2 is the bookshelf down the corridor. HBM is a warehouse across town: huge, but every trip costs time.</p>
+<p>Registers are the ingredients in a cook’s hands. Shared memory is the station’s counter. L2 is the restaurant’s pantry. HBM is the warehouse next door: huge, but every trip costs time.</p>
 </div>
 </div>
 <p>The lesson for fast code: <strong>load each byte from HBM once, then reuse it as many times as possible from SRAM.</strong> The next two sections show why that matters so much.</p>
@@ -839,7 +832,7 @@ D = A \times B + C
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>A kitchen with incredibly fast chefs and one narrow door for groceries. If each dish needs a lot of groceries, the chefs spend their time waiting at the door. Buying faster chefs won’t help; you need dishes that do more cooking per grocery bag.</p>
+<p>Our kitchen lines are incredibly fast, but every ingredient from the warehouse comes through one narrow door. If each dish needs a lot of ingredients, the cooks spend their time waiting at the door. Hiring faster cooks won’t help; you need dishes that do more cooking per crate.</p>
 </div>
 </div>
 </section>
@@ -901,7 +894,7 @@ C = A \times B, \qquad A \in \mathbb{R}^{M \times K},\ B \in \mathbb{R}^{K \time
 <li>After the last chunk, the finished <span class="math inline">\(C\)</span> tile is written back to HBM.</li>
 </ol>
 <p>Per step, the block loads <span class="math inline">\(32\)</span> KB and performs <span class="math inline">\(2 \times 128 \times 128 \times 64 \approx 2.1\)</span> million FLOPs: <strong>64 FLOP/B</strong>, 128 times more reuse than the naive version. Neighbouring blocks often need the same tiles of <span class="math inline">\(A\)</span> and <span class="math inline">\(B\)</span>, and they find them in the 50 MB L2 cache instead of HBM, which pushes the effective intensity higher still.</p>
-<p>Notice the <strong>double buffering</strong> too: while one buffer in shared memory is being computed on, the next tile is already loading into the other. It’s the same idea as warp switching in Figure 5: <strong>overlap waiting with useful work.</strong></p>
+<p>Notice the <strong>double buffering</strong> too: while one buffer in shared memory is being computed on, the next tile is already loading into the other. It’s the same idea as warp switching in Figure 6: <strong>overlap waiting with useful work.</strong></p>
 <p>Now every concept from this post has a job. Each box below is made of the boxes inside it:</p>
 <figure class="gpu-stack figure" aria-label="How a GEMM breaks down, from one kernel launch to individual multiply-adds, and the path data takes">
   <div class="gs-box gs-l1">
@@ -989,6 +982,10 @@ A matrix engine that executes MMA instructions on tiles.
 <li>Performance is set by <strong>arithmetic intensity</strong>: below about 295 FLOPs per byte you’re limited by bandwidth, above it by compute. <strong>Tiling</strong> is how we climb the roofline.</li>
 </ol>
 </div>
+</section>
+<section id="back-to-where-we-started" class="level2">
+<h2 class="anchored" data-anchor-id="back-to-where-we-started">Back to where we started</h2>
+<p>At the start, someone said <em>“this kernel is memory-bound”</em>. Now that sentence has a picture. The kernel sits left of the ridge on the roofline. Its warps spend their cycles waiting on HBM while the Tensor Cores idle. The fix is almost never a faster GPU; it’s more reuse per byte: tiling, batching or fusing operations so data stays in SRAM. That’s the same lesson FlashAttention and every fast GEMM are built on.</p>
 </section>
 <section id="further-reading" class="level2">
 <h2 class="anchored" data-anchor-id="further-reading">Further reading</h2>
