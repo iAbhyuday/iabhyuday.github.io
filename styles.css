@@ -1,16 +1,22 @@
 /* Distill-style typography for the whole blog (after distill.pub's template).
    Colours come from per-theme tokens so dark and light both work. */
 body.quarto-light{
-  --d-ink:#33373b; --d-strong:#1f2326; --d-muted:#5d6268; --d-faint:#7a7f85;
-  --d-rule:rgba(51,55,59,.11); --d-rule2:rgba(51,55,59,.2); --d-rule3:rgba(51,55,59,.06);
-  --d-link:rgba(60,122,115,.45); --d-link-h:#3c7a73; --d-code-bg:rgba(51,55,59,.06);
-  --d-accent:#3c7a73; --d-panel:#fbfaf8; --d-shadow:rgba(31,35,38,.08); --d-select:rgba(60,122,115,.18);
+  --d-ink:#3A3E42; --d-strong:#2A2E31; --d-muted:#696D72; --d-faint:#696D72;
+  --d-rule:#E0DCD3; --d-rule2:#D3CEC4; --d-rule3:rgba(58,62,66,.06);
+  --d-link:rgba(78,132,120,.55); --d-link-h:#4E8478; --d-code-bg:#EBE8E0;
+  --d-accent:#4E8478; --d-panel:#FAF9F5; --d-shadow:rgba(42,46,49,.10); --d-select:rgba(78,132,120,.20);
+  --d-hshadow:0 1px 1px rgba(42,46,49,.10), 0 2px 8px rgba(42,46,49,.10);
 }
 body:not(.quarto-light){
-  --d-ink:#d3d7db; --d-strong:#e9ecee; --d-muted:#9ba2a9; --d-faint:#80878e;
-  --d-rule:rgba(211,215,219,.11); --d-rule2:rgba(211,215,219,.2); --d-rule3:rgba(211,215,219,.05);
-  --d-link:rgba(136,191,183,.45); --d-link-h:#88bfb7; --d-code-bg:rgba(211,215,219,.06);
-  --d-accent:#88bfb7; --d-panel:#22262b; --d-shadow:rgba(0,0,0,.35); --d-select:rgba(136,191,183,.22);
+  --d-ink:#C8CCD0; --d-strong:#DEE1E4; --d-muted:#949AA0; --d-faint:#878D93;
+  --d-rule:#303438; --d-rule2:#3B4045; --d-rule3:rgba(200,204,208,.05);
+  --d-link:rgba(141,191,175,.5); --d-link-h:#8DBFAF; --d-code-bg:#26292D;
+  --d-accent:#8DBFAF; --d-panel:#26292D; --d-shadow:rgba(0,0,0,.35); --d-select:rgba(141,191,175,.22);
+  --d-hshadow:0 1px 2px rgba(0,0,0,.45), 0 3px 10px rgba(0,0,0,.30);
+}
+:root{
+  --d-serif:"Source Serif 4", Georgia, "Times New Roman", serif;
+  --d-sans:"Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 }
 ::selection{background:var(--d-select)}
 
@@ -19,33 +25,35 @@ body{color:var(--d-ink);-webkit-font-smoothing:antialiased}
 
 /* navbar: quiet, page-coloured, hairline below */
 #quarto-header .navbar{border-bottom:1px solid var(--d-rule);box-shadow:none}
+#quarto-header .navbar, #quarto-header .navbar-title{font-family:var(--d-sans)}
 #quarto-header .navbar-title{font-weight:600;letter-spacing:.01em}
 
 /* title block (d-title) */
 #title-block-header.quarto-title-block{margin-top:2.5rem}
-.quarto-title h1.title{font-size:50px;font-weight:700;line-height:1.1em;margin:0 0 .5rem;color:var(--d-strong);text-wrap:balance}
+.quarto-title h1.title{font-family:var(--d-serif);font-size:50px;font-weight:600;line-height:1.1em;margin:0 0 .5rem;color:var(--d-strong);text-shadow:var(--d-hshadow);text-wrap:balance}
 @media (max-width:767px){.quarto-title h1.title{font-size:40px}}
-.quarto-title-block .description, .quarto-title .subtitle{font-weight:300;font-size:1.2rem;line-height:1.55em;color:var(--d-muted)}
+.quarto-title-block .description, .quarto-title .subtitle{font-family:var(--d-sans);font-weight:300;font-size:1.2rem;line-height:1.55em;color:var(--d-muted)}
 .quarto-title .quarto-categories{margin-top:1rem}
-.quarto-title .quarto-category{border:1px solid var(--d-rule2);border-radius:3px;color:var(--d-muted);font-size:.7rem;letter-spacing:.06em;opacity:1}
+.quarto-title .quarto-category{font-family:var(--d-sans);border:1px solid var(--d-rule2);border-radius:3px;color:var(--d-muted);font-size:.7rem;letter-spacing:.06em;opacity:1}
 
 /* byline (d-byline) */
-.quarto-title-meta{border-top:1px solid var(--d-rule);border-bottom:1px solid var(--d-rule);padding:1.25rem 0;margin-top:1.5rem;font-size:.8rem;line-height:1.8em}
+.quarto-title-meta{font-family:var(--d-sans);border-top:1px solid var(--d-rule);border-bottom:1px solid var(--d-rule);padding:1.25rem 0;margin-top:1.5rem;font-size:.8rem;line-height:1.8em}
 .quarto-title-meta-heading{font-size:.6rem;font-weight:400;color:var(--d-faint);text-transform:uppercase;letter-spacing:.06em;margin:0}
 .quarto-title-meta-contents{font-weight:500;color:var(--d-ink)}
 
 /* article body (d-article) */
 main.content{color:var(--d-ink)}
 #quarto-document-content{padding-top:.5rem}
-@media (min-width:1024px){main.content{font-size:1.06rem;line-height:1.75em}}
+main.content{font-size:1.08rem;line-height:1.72em}
+@media (min-width:1024px){main.content{font-size:1.16rem;line-height:1.72em}}
 main.content > hr:first-of-type{display:none}
 main.content p{margin:0 0 1em}
 
-main.content h2{font-weight:600;font-size:24px;line-height:1.25em;margin:2.5rem 0 1.5rem;padding-bottom:1rem;border-bottom:1px solid var(--d-rule);color:var(--d-strong)}
+main.content h2{font-family:var(--d-serif);text-shadow:var(--d-hshadow);font-weight:600;font-size:24px;line-height:1.25em;margin:2.5rem 0 1.5rem;padding-bottom:1rem;border-bottom:1px solid var(--d-rule);color:var(--d-strong)}
 @media (min-width:1024px){main.content h2{font-size:32px}}
-main.content h3{font-weight:700;font-size:18px;line-height:1.4em;margin:2em 0 1em;color:var(--d-strong)}
+main.content h3{font-family:var(--d-serif);text-shadow:var(--d-hshadow);font-weight:600;font-size:18px;line-height:1.4em;margin:2em 0 1em;color:var(--d-strong)}
 @media (min-width:1024px){main.content h3{font-size:20px}}
-main.content h4{font-weight:600;font-size:14px;line-height:1.4em;text-transform:uppercase;letter-spacing:.04em}
+main.content h4{font-family:var(--d-sans);font-weight:600;font-size:14px;line-height:1.4em;text-transform:uppercase;letter-spacing:.04em}
 
 main.content a{color:inherit;text-decoration:none;border-bottom:1px solid var(--d-link)}
 main.content a:hover{border-bottom-color:var(--d-link-h);color:var(--d-link-h)}
@@ -55,14 +63,14 @@ main.content code:not(pre code){color:inherit;background:var(--d-code-bg);paddin
 main.content pre{font-size:14px;margin-bottom:20px}
 div.sourceCode{background:var(--d-code-bg);border:none;border-radius:4px}
 
-main.content table{border-collapse:collapse;margin-bottom:1.5rem;border-bottom:1px solid var(--d-rule2);font-variant-numeric:tabular-nums}
+main.content table{font-family:var(--d-sans);border-collapse:collapse;margin-bottom:1.5rem;border-bottom:1px solid var(--d-rule2);font-variant-numeric:tabular-nums}
 main.content table th{border-bottom:1px solid var(--d-rule2)!important;border-top:none!important;font-size:15px;padding:2px 8px;text-align:left;font-weight:600}
 main.content table td{border-bottom:1px solid var(--d-rule3)!important;border-top:none!important;font-size:15px;padding:2px 8px}
 main.content table, main.content table *{background:transparent!important}
 
 main.content blockquote{border-left:2px solid var(--d-rule2);padding-left:2em;font-style:italic;color:var(--d-muted)}
 
-figcaption, .figure-caption{color:var(--d-muted);font-size:12px;line-height:1.5em}
+figcaption, .figure-caption{font-family:var(--d-sans);color:var(--d-muted);font-size:12px;line-height:1.5em}
 @media (min-width:1024px){figcaption, .figure-caption{font-size:13px}}
 figcaption b, figcaption strong{font-weight:600;color:var(--d-strong)}
 
@@ -70,16 +78,21 @@ figcaption b, figcaption strong{font-weight:600;color:var(--d-strong)}
 .callout{border:none!important;border-left:2px solid var(--d-rule2)!important;border-radius:0!important;background:transparent!important;box-shadow:none!important;margin:1.5rem 0!important}
 .callout .callout-header{background:transparent!important;border:none!important;padding-left:1rem!important}
 .callout .callout-icon-container{display:none!important}
-.callout .callout-title-container{font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--d-faint)}
+.callout .callout-title-container{font-family:var(--d-sans);font-size:.72rem;font-weight:600;text-transform:uppercase;letter-spacing:.07em;color:var(--d-faint)}
 .callout .callout-body-container{padding-left:1rem;color:var(--d-ink)}
 
 
 /* blog listing */
-.quarto-listing-default .listing-title{font-weight:700;color:var(--d-strong)}
+.quarto-listing-default .listing-title{font-family:var(--d-serif);font-weight:600;color:var(--d-strong)}
 .quarto-listing-default .listing-description{color:var(--d-muted)}
 .quarto-post{border-bottom:1px solid var(--d-rule)!important}
 
 /* polish */
 main.content table th, main.content table td{line-height:1.5em;padding-top:6px;padding-bottom:6px}
 #title-block-header .quarto-title-meta:not(:has(.quarto-title-meta-heading)){display:none}
-.quarto-post .listing-title{font-weight:700;font-size:1.3rem;line-height:1.3;color:var(--d-strong)}
+.quarto-post .listing-title{font-family:var(--d-serif);font-weight:600;font-size:1.3rem;line-height:1.3;color:var(--d-strong)}
+
+/* listing meta and UI text in the sans */
+.quarto-listing .listing-date, .quarto-listing .listing-author, .quarto-listing .listing-categories, .quarto-listing .listing-description{font-family:var(--d-sans)}
+.quarto-listing .listing-description{font-size:1rem}
+main.content code, pre code{font-family:"Source Code Pro", SFMono-Regular, Menlo, Consolas, monospace}

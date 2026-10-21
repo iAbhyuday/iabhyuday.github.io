@@ -6,17 +6,17 @@
    .light when the page background is light. --g-surface is set from
    the page background at runtime so filled shapes blend in. */
 .gpu-fig{
-  --g-surface:#222222; --g-die:#2a2a2a; --g-sm:#3b3b3b; --g-line:#4a4a4a;
-  --g-ink:#e4e4e4; --g-muted:#9b9b9b;
-  --g-cuda:#4cbb73; --g-tensor:#a98be0; --g-warp:#5aa2e6; --g-mem:#f2c14e; --g-idle:#ef5f5f;
+  --g-surface:#1F2124; --g-die:#26292D; --g-sm:#34383D; --g-line:#42474D;
+  --g-ink:#DCDFE2; --g-muted:#9AA0A6;
+  --g-cuda:#74b98a; --g-tensor:#a891d6; --g-warp:#7aa6d4; --g-mem:#e0bd62; --g-idle:#e07b72;
   --g-hair:rgba(255,255,255,.12);
   margin:2.5rem 0 2.75rem;
   color:var(--g-ink);
 }
 .gpu-fig.light{
-  --g-surface:#ffffff; --g-die:#f3f5f7; --g-sm:#d5dbe1; --g-line:#c3cad1;
-  --g-ink:#2b2f33; --g-muted:#5f6670;
-  --g-cuda:#2ca02c; --g-tensor:#9467bd; --g-warp:#1f77b4; --g-mem:#d49100; --g-idle:#d62728;
+  --g-surface:#F4F2EC; --g-die:#ECE9E2; --g-sm:#D8D4CB; --g-line:#C9C4BA;
+  --g-ink:#2F3337; --g-muted:#62666B;
+  --g-cuda:#4f9a5a; --g-tensor:#8a73b5; --g-warp:#4a7fb0; --g-mem:#c99a2e; --g-idle:#c4544f;
   --g-hair:rgba(0,0,0,.1);
 }
 .gpu-fig .gf-scroll{overflow-x:auto}
@@ -44,7 +44,7 @@
 .gpu-fig canvas{position:absolute;inset:0;width:100%;height:100%;display:block}
 
 /* controls: one quiet row under the figure */
-.gpu-fig .gf-bar,.gpu-fig .gf-ctl{display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:4px 0;font-size:.82rem;color:var(--g-muted)}
+.gpu-fig .gf-bar,.gpu-fig .gf-ctl{font-family:var(--d-sans, sans-serif);display:flex;flex-wrap:wrap;align-items:center;gap:6px 14px;padding:4px 0;font-size:.82rem;color:var(--g-muted)}
 .gpu-fig .gf-ctl{padding-top:0}
 .gpu-fig .gf-play{width:30px;height:30px;border-radius:50%;border:1px solid var(--g-line);background:transparent;color:var(--g-ink);display:inline-flex;align-items:center;justify-content:center;cursor:pointer;padding:0}
 .gpu-fig .gf-play:hover{border-color:var(--g-muted)}
@@ -69,7 +69,7 @@
 .gpu-fig input[type=range]::-moz-range-thumb{width:13px;height:13px;border-radius:50%;background:var(--g-ink);border:0}
 
 /* caption */
-.gpu-fig figcaption{margin-top:.75rem;font-size:13px;line-height:1.5em;color:var(--g-muted);max-width:44rem}
+.gpu-fig figcaption{font-family:var(--d-sans, sans-serif);margin-top:.75rem;font-size:13px;line-height:1.5em;color:var(--g-muted);max-width:44rem}
 .gpu-fig figcaption b{color:var(--g-ink);font-weight:600}
 .gpu-fig figcaption i{font-style:italic}
 
@@ -83,13 +83,13 @@
 .gpu-cheat{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:1rem 2rem;margin:1rem 0 1.25rem}
 @media (max-width:720px){.gpu-cheat{grid-template-columns:minmax(0,1fr)}}
 .gpu-cheat h4{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;margin:0 0 .5rem;padding-bottom:.35rem;border-bottom:1px solid currentColor;opacity:.85}
-.gpu-cheat .sw h4{color:#5aa2e6}
-.gpu-cheat .hw h4{color:#4cbb73}
+.gpu-cheat .sw h4{color:#7aa6d4}
+.gpu-cheat .hw h4{color:#74b98a}
 .gpu-cheat dl{display:grid;grid-template-columns:minmax(7.5em,auto) 1fr;gap:.45rem 1rem;margin:0;font-size:.95rem}
 .gpu-cheat dt{font-weight:600}
 .gpu-cheat dd{margin:0;min-width:0}
 @media (prefers-reduced-motion:reduce){.gpu-fig *{transition:none!important}}
 
 /* light page (Quarto light theme) */
-body.quarto-light .gpu-cheat .sw h4{color:#1f77b4}
-body.quarto-light .gpu-cheat .hw h4{color:#2ca02c}
+body.quarto-light .gpu-cheat .sw h4{color:#4a7fb0}
+body.quarto-light .gpu-cheat .hw h4{color:#4f9a5a}

@@ -724,7 +724,7 @@ function watchTheme(){
   window.addEventListener('quarto-hrChanged', refresh);
 }
 function init(){
-  const bodyFont = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
+  const bodyFont = '"Source Sans 3", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
   FONTS.body = bodyFont; FONTS.display = bodyFont;
   FONTS.mono = bodyFont;
   document.querySelectorAll('figure.gpu-fig[data-fig]').forEach(mount);
@@ -734,6 +734,7 @@ function init(){
   } else figs.forEach(st => st.visible = true);
   figs.forEach(render);
   watchTheme();
+  if (document.fonts && document.fonts.load) Promise.all(['400 14px "Source Sans 3"','600 14px "Source Sans 3"','700 14px "Source Sans 3"'].map(f => document.fonts.load(f).catch(() => {}))).then(() => figs.forEach(render));
   let last = performance.now();
   function frame(now){
     const dt = Math.min(.1,(now-last)/1000); last = now;

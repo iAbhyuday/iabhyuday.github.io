@@ -2,7 +2,7 @@
      section list on hover or focus; a "Contents" button on small screens.
      It is fixed to the viewport, so wide figures never push it around. -->
 <style>
-.toc-rail{position:fixed;left:max(20px, env(safe-area-inset-left, 0px));top:50%;transform:translateY(-50%);z-index:1030;font-size:.86rem;line-height:1.35}
+.toc-rail{font-family:var(--d-sans);position:fixed;left:max(20px, env(safe-area-inset-left, 0px));top:50%;transform:translateY(-50%);z-index:1030;font-size:.86rem;line-height:1.35}
 .toc-rail[hidden]{display:none!important}
 .toc-rail ol{list-style:none;margin:0;padding:10px 12px;display:flex;flex-direction:column;gap:9px;border-radius:12px;max-height:72vh;overflow:hidden auto;transition:background .2s, box-shadow .2s}
 .toc-rail li{margin:0}
