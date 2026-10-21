@@ -410,11 +410,11 @@ window.Quarto = {
 <ul>
 <li><strong>Branch prediction</strong> guesses the outcome of every <code>if</code> before it’s known, so the core never waits to find out.</li>
 <li><strong>Out-of-order execution</strong> keeps hundreds of instructions in flight and runs whichever ones are ready, so one slow instruction doesn’t stall the rest.</li>
-<li><strong>Large caches</strong> (a couple of megabytes per core, plus a big shared L3) mean most memory reads come back in a few cycles.</li>
+<li><strong>Large caches</strong> (a couple of megabytes per core, plus a big shared L3 cache) mean most memory reads come back in a few cycles.</li>
 <li><strong>A high clock</strong>, around 3–5 GHz.</li>
 </ul>
 <p>All of that serves one goal: <strong>low latency</strong>. Finish <em>this</em> task as soon as possible.</p>
-<p>Inside a modern CPU core there <em>is</em> a small amount of parallel math: <strong>SIMD</strong> units that apply one instruction to several numbers at once. With AVX-512, a core has two units that are each 16 FP32 numbers wide, so 32 <strong>lanes</strong> in total.</p>
+<p>Inside a modern CPU core there <em>is</em> a small amount of parallel math: <strong>SIMD</strong> units that apply one instruction to several numbers at once. With AVX-512 (Intel’s and AMD’s widest SIMD instructions), a core has two units that are each 16 FP32 numbers wide (FP32 is the standard 32-bit decimal number), so 32 <strong>lanes</strong> in total.</p>
 </section>
 <section id="what-a-cuda-core-is" class="level3 page-columns page-full">
 <h3 class="anchored" data-anchor-id="what-a-cuda-core-is">What a “CUDA core” is</h3>
@@ -473,7 +473,7 @@ window.Quarto = {
 <p>Two lessons come out of Figure 1.</p>
 <p><strong>A single GPU thread is slow.</strong> It runs at half the clock, has no out-of-order execution, and waits much longer for memory. For one long chain of dependent steps, where each step needs the previous answer, the CPU core wins by an order of magnitude. Branchy, sequential, latency-sensitive work belongs on the CPU: parsing, tokenisation, data-loading logic, the Python that orchestrates your training loop.</p>
 <p><strong>The GPU wins on independent work, and mostly by scale.</strong> On plain FP32 math, one SM is only about 2× one CPU core. The big gap comes from having 132 SMs, from hiding memory waits cheaply instead of avoiding them, and from dedicated matrix units called Tensor Cores. Each of those gets its own section below.</p>
-<p>Put together, an H100 does roughly 5× the FP32 throughput of a 64-core server CPU’s vector units, and roughly 80× once its Tensor Cores run BF16.</p>
+<p>Put together, an H100 does roughly 5× the FP32 throughput of a 64-core server CPU’s vector units, and roughly 80× once its Tensor Cores run on BF16, a 16-bit number format we’ll meet in the Tensor Core section.</p>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">
@@ -499,7 +499,7 @@ window.Quarto = {
 <p>Three parts matter here.</p>
 <p><strong>Streaming Multiprocessors (SMs).</strong> The SM is the basic building block: the unit that gets copied over and over. The full GH100 die has 144 SMs arranged in 8 groups called GPCs (graphics processing clusters). A die this big almost always has a few manufacturing defects, so NVIDIA switches off the faulty SMs and sells the chip with <strong>132 enabled</strong>. That’s the dashed outlines in the figure.</p>
 <p><strong>L2 cache (50 MB).</strong> A shared pantry in the middle of the chip. Every SM can read from it, and it’s much faster to reach than off-chip memory.</p>
-<p><strong>HBM3 (80 GB).</strong> High Bandwidth Memory: five stacks of DRAM chips sitting right next to the die. This is where your model weights, activations and KV cache live. It’s big, but it’s off the die, so it’s the slowest tier.</p>
+<p><strong>HBM3 (80 GB).</strong> High Bandwidth Memory: five stacks of DRAM, the same kind of memory chip as a PC’s RAM, sitting right next to the die. This is where your model weights, activations and KV cache (the attention data an LLM keeps while generating text) live. It’s big, but it’s off the die, so it’s the slowest tier.</p>
 <p>Put together, this is what NVIDIA prints on the H100’s spec sheet. Each number gets explained somewhere in this post; tap one to jump there.</p>
 <nav class="gpu-specs-card" aria-label="H100 SXM5 by the numbers">
   <div class="gsc-head">H100 SXM5 by the numbers</div>
@@ -555,7 +555,7 @@ add&lt;&lt;&lt;4096, 256&gt;&gt;&gt;(a, b, c, n);</code></pre>
 <ul>
 <li>a <strong>warp scheduler</strong>, which decides what runs next,</li>
 <li>a <strong>register file</strong> of 64 KB, the fastest storage on the chip,</li>
-<li><strong>32 FP32 CUDA cores</strong>, plus 16 INT32 and 16 FP64 units,</li>
+<li><strong>32 FP32 CUDA cores</strong>, plus 16 INT32 units (whole-number math, like loop counters and addresses) and 16 FP64 units (64-bit, double-precision decimals),</li>
 <li><strong>one Tensor Core</strong>, a dedicated matrix-multiply engine.</li>
 </ul>
 <p>All four sub-partitions share a 256 KB block of on-chip memory that acts as <strong>L1 cache</strong> and <strong>shared memory</strong> (more on the difference later), plus the <strong>TMA</strong> (Tensor Memory Accelerator), a copy engine that moves whole tiles of data from global memory into shared memory in the background.</p>
@@ -624,7 +624,7 @@ int lane = threadIdx.x % 32;   // thread 52 → lane 20</code></pre>
 </div>
 </div>
 <div class="callout-body-container callout-body">
-<p>FP32 lines up perfectly: 32 threads, 32 units. Other instructions don’t. A sub-partition has 16 FP64 units, so a warp’s FP64 instruction takes <strong>two passes</strong>. Special functions like <code>sin</code> and <code>exp</code> run on a handful of SFUs and take several cycles. And there’s only <strong>one</strong> Tensor Core per sub-partition, so the whole warp feeds it together, each thread holding a small piece of the matrices in its registers.</p>
+<p>FP32 lines up perfectly: 32 threads, 32 units. Other instructions don’t. A sub-partition has 16 FP64 units, so a warp’s FP64 instruction takes <strong>two passes</strong>. Special functions like <code>sin</code>, <code>exp</code> and square root run on a few dedicated <strong>special function units</strong> (4 per sub-partition), so one warp’s instruction takes several cycles. And there’s only <strong>one</strong> Tensor Core per sub-partition, so the whole warp feeds it together, each thread holding a small piece of the matrices in its registers.</p>
 </div>
 </div>
 <div class="callout callout-style-default callout-tip callout-titled">
@@ -662,7 +662,21 @@ D = A \times B + C
 <figure class="gpu-fig column-body-outset figure" data-fig="cores" aria-label="Race between 32 CUDA cores and one Tensor Core computing the same tile">
 <figcaption><b>Figure 5 · The race.</b> 32 CUDA cores do 32 FMAs per clock and need 128 clocks. One Tensor Core in the same sub-partition does 512 FP16 FMAs per clock and needs 8. Per SM, that's 128 vs 2,048 multiply-adds per clock: 16× more.</figcaption>
 </figure>
-<p>That gap is why the H100’s peak numbers look so different depending on which unit you use:</p>
+<p>That gap is why the H100’s peak numbers look so different depending on which unit you use and which number format it works in.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Number formats
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Each format is a trade-off between precision and speed. <strong>FP64</strong> uses 64 bits per number (scientific computing). <strong>FP32</strong> uses 32 bits, the everyday default. <strong>FP16</strong> and <strong>BF16</strong> use 16 bits; BF16 keeps FP32’s range with less precision, which suits neural networks. <strong>FP8</strong> uses just 8 bits. <strong>TF32</strong> is a Tensor Core trick: FP32’s range with roughly FP16’s precision. Fewer bits per number means more numbers per clock: on the Tensor Cores, each step from TF32 to BF16 to FP8 doubles the peak.</p>
+</div>
+</div>
+<p>The peaks below are <strong>dense</strong>: with no special handling of zeros in the matrices. (NVIDIA also quotes “sparse” figures that are twice as high.)</p>
 <table class="caption-top table">
 <thead>
 <tr class="header">
@@ -787,7 +801,7 @@ D = A \times B + C
 </tbody>
 </table>
 <p>Two pairs of terms are worth separating clearly.</p>
-<p><strong>SRAM vs DRAM.</strong> These are two ways of building memory. <strong>SRAM</strong> stores each bit in a small circuit of about six transistors. It’s fast and needs no refreshing, but it takes a lot of area, so you can only fit tens of megabytes on a chip. <strong>DRAM</strong> stores each bit as charge in one tiny capacitor. It’s far denser, so you get gigabytes, but it’s slower and must be refreshed constantly. <strong>HBM</strong> is DRAM stacked vertically and wired to the GPU through thousands of connections in a silicon interposer, which is how it reaches 3.35 TB/s.</p>
+<p><strong>SRAM vs DRAM.</strong> These are two ways of building memory. <strong>SRAM</strong> stores each bit in a small circuit of about six transistors. It’s fast and needs no refreshing, but it takes a lot of area, so you can only fit tens of megabytes on a chip. <strong>DRAM</strong> stores each bit as charge in one tiny capacitor. It’s far denser, so you get gigabytes, but it’s slower and must be refreshed constantly. <strong>HBM</strong> is DRAM stacked vertically and wired to the GPU through thousands of connections in a silicon interposer (a thin slab of silicon that both the GPU and the memory sit on), which is how it reaches 3.35 TB/s.</p>
 <p><strong>Cache vs shared memory.</strong> These live in the <em>same</em> 256 KB of SRAM in each SM. The difference is who’s in charge. A <strong>cache</strong> (L1, L2) is managed by hardware: it keeps recently used data and guesses what you’ll need. <strong>Shared memory</strong> is managed by you: your kernel explicitly copies a tile of data in, and every thread in the block can read it. Shared memory is how a block of threads <em>cooperates</em>.</p>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">
@@ -931,7 +945,7 @@ C = A \times B, \qquad A \in \mathbb{R}^{M \times K},\ B \in \mathbb{R}^{K \time
     </ol>
   </div>
 </figure>
-<p>This is what libraries like cuBLAS and CUTLASS do when you call <code>torch.matmul</code>. And <strong>FlashAttention</strong> is this same pattern applied to attention: it tiles <span class="math inline">\(Q\)</span>, <span class="math inline">\(K\)</span> and <span class="math inline">\(V\)</span> through shared memory so the large <span class="math inline">\(N \times N\)</span> attention matrix never has to be written to HBM at all.</p>
+<p>This is what NVIDIA’s matrix-multiply libraries, cuBLAS and CUTLASS, do when you call <code>torch.matmul</code>. And <strong>FlashAttention</strong> is this same pattern applied to attention: it tiles <span class="math inline">\(Q\)</span>, <span class="math inline">\(K\)</span> and <span class="math inline">\(V\)</span> through shared memory so the large <span class="math inline">\(N \times N\)</span> attention matrix never has to be written to HBM at all.</p>
 </section>
 <section id="cheat-sheet" class="level2">
 <h2 class="anchored" data-anchor-id="cheat-sheet">Cheat sheet</h2>
