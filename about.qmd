@@ -1,6 +1,6 @@
 ---
 title: "Abhyuday Tripathi"
-subtitle: "Software Engineer at Google · Bengaluru"
+subtitle: "Software Engineer at Google"
 image: profile.jpg
 about:
   template: trestles
@@ -21,13 +21,9 @@ about:
       href: https://topmate.io/abhyuday_tripathi
 ---
 
-Hi, I'm Abhyuday. I'm a software engineer at Google in Bengaluru.
+Hi, I'm Abhyuday. I'm a software engineer at Google.
 
 Before Google, I spent four and a half years at Siemens as a Lead AI Research Engineer, working on reinforcement learning, computer vision and the software that turns research into products.
-
-## What I write about
-
-This blog is where I take a topic I use every day and work out how it *really* works, from first principles: how a GPU runs your code, why a trick like Gumbel-Softmax makes sampling differentiable, where the time actually goes when a model trains or serves. Every post builds the idea up step by step, with animations you can pause and play with, so the intuition sticks.
 
 ## Outside work
 
