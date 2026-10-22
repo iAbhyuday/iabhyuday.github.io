@@ -380,9 +380,21 @@ Plotted on log-log axes, this gives the **roofline**: a sloped line (memory limi
 The presets are real workloads:
 
 -   **Vector add in FP32:** read two 4-byte numbers, write one, do 1 FLOP. That's 1 FLOP per 12 bytes, about 0.3 TFLOPS. A 989 TFLOPS chip running at 0.03% of its peak, and there's nothing the kernel can do about it.
--   **LLM decoding at batch size 1:** generating one token multiplies every weight matrix by a single vector. Each 2-byte BF16 weight is loaded once and used in one FMA (2 FLOPs), so intensity is about 1 FLOP/B. That's why token-by-token generation is memory-bound.
--   **Decoding at batch size 64:** each weight loaded from HBM is now reused for 64 tokens, so intensity rises to about 64 FLOP/B. This is the whole reason inference servers batch requests together.
--   **A big square matrix multiply** ($8192^3$ in BF16): intensity is about $n/3 \approx 2{,}731$ FLOP/B, well past the ridge. Compute-bound.
+-   **LLM decoding at batch size 1:** *decoding* is how a language model writes its reply: one token at a time, each step feeding on the one before (see the note below). Generating one token multiplies every weight matrix by a single vector. Each 2-byte BF16 weight is loaded once and used in one FMA (2 FLOPs), so intensity is about 1 FLOP/B. That's why token-by-token generation is memory-bound.
+-   **Decoding at batch size 64:** serve 64 users at once, and their 64 token vectors stack into a matrix. Each weight loaded from HBM is now reused for 64 tokens, one per user, so intensity rises to about 64 FLOP/B. This is the whole reason inference servers batch requests together.
+-   **A big square matrix multiply:** two $n \times n$ matrices in BF16, here with side length $n = 8192$. It does $2n^3$ FLOPs ($n^2$ outputs, each a sum of $n$ FMAs) but moves only $6n^2$ bytes (three matrices of $n^2$ two-byte numbers). Intensity is $2n^3 / 6n^2 = n/3 \approx 2{,}731$ FLOP/B, well past the ridge. Compute-bound. FLOPs grow as $n^3$ but bytes only as $n^2$, so the bigger the matrix, the more each byte is reused.
+
+::: callout-note
+## How LLM decoding works, and why it's memory-bound
+
+A language model writes **one token at a time** (a *token* is a word or a piece of a word): to produce token 101 it runs the whole model on token 100, picks the next token, and repeats. Steps can't run in parallel, because each needs the one before.
+
+Inside the model, the current token is a vector, for example 4,096 numbers. At every layer it's multiplied by big weight matrices, $y = W x$: a matrix times a *vector*. Each weight comes from HBM (2 bytes), is used in exactly one FMA (2 FLOPs), and isn't needed again for this token.
+
+For a 7-billion-parameter model, that means streaming 14 GB of weights for every token. At 3.35 TB/s, that takes about 4.2 ms, which caps generation near 240 tokens per second. The math itself (14 GFLOP) would take the Tensor Cores about 0.014 ms. Faster math wouldn't help; only fewer bytes per FLOP would.
+
+Batching is that fix: with 64 users, each weight is loaded once and used 64 times. (Each user also has a **KV cache** to read every step, which batching doesn't share, so real decoding is a little more memory-bound than this sketch.)
+:::
 
 ::: callout-tip
 ## Think of it as
