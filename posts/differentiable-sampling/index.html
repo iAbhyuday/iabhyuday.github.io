@@ -8,9 +8,9 @@
 
 <meta name="author" content="Abhyuday">
 <meta name="dcterms.date" content="2024-12-23">
-<meta name="description" content="Why sampling from a categorical distribution breaks backpropagation, and how softmax with temperature plus Gumbel noise makes it differentiable.">
+<meta name="description" content="Why picking one option from a probability distribution blocks backpropagation, and how the Gumbel-Max trick plus a softmax with temperature lets gradients through. Built up step by step, with interactive figures.">
 
-<title>Gumbel Softmax: Differentiable Sampling from Discrete Distributions – iabhyuday</title>
+<title>Gumbel-Softmax: Differentiable Sampling from Discrete Distributions – iabhyuday</title>
 <style>
 /* Default styles provided by pandoc.
 ** See https://pandoc.org/MANUAL.html#variables-for-html for config info.
@@ -85,8 +85,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting-dark-bd214ee8a11bbafa21949b7e7cbab4ab.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
 <script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../../site_libs/bootstrap/bootstrap-35efe23a430f3fbc287cc91ab3874389.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="../../site_libs/bootstrap/bootstrap-dark-867004202be20c9773a02d19aeda18f9.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../../site_libs/bootstrap/bootstrap-d1776b11deff18fc658dff9ec1e8bd1d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../../site_libs/bootstrap/bootstrap-dark-9b0fc61af3f9dc2874153f629b3f5ae8.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -114,8 +114,6 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
     "search-label": "Search"
   }
 }</script>
-<script type="module" src="../../site_libs/quarto-ojs/quarto-ojs-runtime.js"></script>
-<link href="../../site_libs/quarto-ojs/quarto-ojs.css" rel="stylesheet">
 
   <script src="https://cdnjs.cloudflare.com/polyfill/v3/polyfill.min.js?features=es6"></script>
   <script defer="" src="https://cdn.jsdelivr.net/npm/mathjax@4/tex-chtml.js" type="text/javascript"></script>
@@ -148,14 +146,15 @@ window.Quarto = {
 </script>
 
 <link rel="stylesheet" href="../../styles.css">
-<meta property="og:title" content="Gumbel Softmax: Differentiable Sampling from Discrete Distributions – iabhyuday">
-<meta property="og:description" content="Why sampling from a categorical distribution breaks backpropagation, and how softmax with temperature plus Gumbel noise makes it differentiable.">
+<link rel="stylesheet" href="../../assets/blog-components.css">
+<meta property="og:title" content="Gumbel-Softmax: Differentiable Sampling from Discrete Distributions – iabhyuday">
+<meta property="og:description" content="Why picking one option from a probability distribution blocks backpropagation, and how the Gumbel-Max trick plus a softmax with temperature lets gradients through. Built up step by step, with interactive figures.">
 <meta property="og:image" content="https://iabhyuday.github.io/posts/differentiable-sampling/thumbnail.png">
 <meta property="og:site_name" content="iabhyuday">
 <meta property="og:image:height" content="800">
 <meta property="og:image:width" content="1200">
-<meta name="twitter:title" content="Gumbel Softmax: Differentiable Sampling from Discrete Distributions – iabhyuday">
-<meta name="twitter:description" content="Why sampling from a categorical distribution breaks backpropagation, and how softmax with temperature plus Gumbel noise makes it differentiable.">
+<meta name="twitter:title" content="Gumbel-Softmax: Differentiable Sampling from Discrete Distributions – iabhyuday">
+<meta name="twitter:description" content="Why picking one option from a probability distribution blocks backpropagation, and how the Gumbel-Max trick plus a softmax with temperature lets gradients through. Built up step by step, with interactive figures.">
 <meta name="twitter:image" content="https://iabhyuday.github.io/posts/differentiable-sampling/thumbnail.png">
 <meta name="twitter:creator" content="@abhyu97">
 <meta name="twitter:image-height" content="800">
@@ -378,22 +377,21 @@ window.Quarto = {
 <!-- margin-sidebar -->
     
 <!-- main -->
-<main class="content" id="quarto-document-content">
+<main class="content page-columns page-full" id="quarto-document-content">
 
 
 <header id="title-block-header" class="quarto-title-block default">
 <div class="quarto-title">
-<h1 class="title">Gumbel Softmax: Differentiable Sampling from Discrete Distributions</h1>
+<h1 class="title">Gumbel-Softmax: Differentiable Sampling from Discrete Distributions</h1>
   <div class="quarto-categories">
     <div class="quarto-category">deep-learning</div>
     <div class="quarto-category">probability</div>
-    <div class="quarto-category">code</div>
   </div>
   </div>
 
 <div>
   <div class="description">
-    Why sampling from a categorical distribution breaks backpropagation, and how softmax with temperature plus Gumbel noise makes it differentiable.
+    Why picking one option from a probability distribution blocks backpropagation, and how the Gumbel-Max trick plus a softmax with temperature lets gradients through. Built up step by step, with interactive figures.
   </div>
 </div>
 
@@ -414,6 +412,12 @@ window.Quarto = {
     </div>
   </div>
   
+    <div>
+    <div class="quarto-title-meta-heading">Modified</div>
+    <div class="quarto-title-meta-contents">
+      <p class="date-modified">October 22, 2026</p>
+    </div>
+  </div>
     
   </div>
   
@@ -422,116 +426,317 @@ window.Quarto = {
 </header>
 
 
-<p>Discrete sampling plays a crucial role in many machine learning tasks, such as classification, reinforcement learning, and generative modeling. Whether you’re predicting the next action for a reinforcement learning agent or selecting vectors from a codebook in a VQ-VAE, the process often involves choosing one value from a predefined set of categories based on a probability distribution.</p>
-<p>However, during training, this sampling process encounters a major roadblock: the lack of differentiability. This makes backpropagation—essential for optimizing neural networks—impossible. Enter <strong>Gumbel-Softmax</strong>, a technique that enables differentiable sampling while retaining the key properties of discrete sampling. In this blog post, we’ll explore the problem, dissect the Gumbel-Softmax trick, and understand how it solves this challenge.</p>
-<section id="what-is-discrete-sampling" class="level2">
-<h2 class="anchored" data-anchor-id="what-is-discrete-sampling">What is Discrete Sampling</h2>
-<p>Discrete sampling refers to selecting the value of a random variable from a given discrete probability distribution <span class="math inline">\(p\)</span>, defined as:</p>
+<p>Some neural networks have to make a <strong>choice</strong> in the middle of their computation. A discrete VAE picks one entry from a codebook of learned vectors. A reinforcement-learning agent picks one action out of ten. A model that learns to send messages picks one word. The network outputs probabilities, then <em>one</em> option is drawn and used downstream.</p>
+<p>Training that network means asking a gradient question: <em>if I nudged these probabilities, how would the final loss change?</em> And the moment you draw a single option, that question has no useful answer. Backpropagation stops at the choice.</p>
+<p>In this post, we’ll build up the fix, <strong>Gumbel-Softmax</strong>, one idea at a time: what sampling is, exactly why it blocks gradients, how a softmax with temperature softens a choice, and how Gumbel noise puts the randomness back. Every figure is a small animation you can pause, restart and play with.</p>
+<p>By the end, <strong>Gumbel-Max</strong>, <strong>temperature</strong> and the <strong>straight-through</strong> trick should feel concrete.</p>
+<section id="choosing-one-thing-categorical-distributions" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="choosing-one-thing-categorical-distributions">Choosing one thing: categorical distributions</h2>
+<p>A <strong>categorical distribution</strong> is a list of probabilities over a fixed set of options, one number per option, adding up to 1:</p>
 <p><span class="math display">\[
-p = [p_1, p_2, ..., p_n] \quad where \quad \sum_{i=1}^n p_i = 1
+p = [p_1, p_2, \dots, p_n], \qquad \sum_{i=1}^{n} p_i = 1
 \]</span></p>
-<p>For example, <span class="math inline">\(p = [0.6, 0.3, 0.1]\)</span> is a categorical distribution over three classes,</p>
+<p>We’ll use one running example: three categories A, B and C with</p>
+<p><span class="math display">\[
+p = [0.6,\ 0.3,\ 0.1]
+\]</span></p>
+<p>A network doesn’t usually output <span class="math inline">\(p\)</span> directly. It outputs <strong>logits</strong> <span class="math inline">\(z\)</span>: raw, unbounded scores, one per category. A <strong>softmax</strong> turns them into probabilities, <span class="math inline">\(p_i = e^{z_i} / \sum_j e^{z_j}\)</span>. Going the other way, <span class="math inline">\(z_i = \log p_i\)</span> (plus any constant, which softmax ignores). So “logits” and “log-probabilities” are interchangeable for us.</p>
+<p>There are two common ways to turn <span class="math inline">\(p\)</span> into a single choice:</p>
 <ul>
-<li><p>We can select first class with probability: <span class="math inline">\(P(X=1) = 0.6\)</span> i.e.&nbsp;60%</p></li>
-<li><p>We can select second class with probability: <span class="math inline">\(P(X=2) = 0.3\)</span> i.e.&nbsp;30%</p></li>
-<li><p>We can select third class with probability: <span class="math inline">\(P(X=3) = 0.1\)</span> i.e.&nbsp;10%</p></li>
+<li><strong>argmax:</strong> always pick the most likely category. Here that’s A, every time. This is what a classifier does at inference.</li>
+<li><strong>Sampling:</strong> pick category <span class="math inline">\(i\)</span> with probability <span class="math inline">\(p_i\)</span>. A about 60% of the time, B 30%, C 10%. This is what <code>np.random.choice</code> does, and what an RL agent does when it explores.</li>
 </ul>
-<p>In practice, Sampling process is usually performed using:</p>
-<ol type="1">
-<li><p><code>argmax</code> selecting the value with highest probability. e.g.&nbsp;inference on a multi-class classifier.</p></li>
-<li><p><code>np.random.choice</code> selecting a random item with corresponding probability. e.g.&nbsp;a RL agent exploring the discrete action space.</p></li>
+<p>A simple way to sample: lay the probabilities end to end along the interval from 0 to 1, draw a uniform random number <span class="math inline">\(u\)</span>, and pick whichever segment it lands in.</p>
+<figure class="blog-fig column-body-outset figure" data-fig="sampling" aria-label="Sampling from p = [0.6, 0.3, 0.1] with a uniform random number, and a histogram converging to p">
+<figcaption><b>Figure 1 · Sampling.</b> Each round, a uniform number <i>u</i> (gold) drops onto the interval split by <i>p</i>, and the segment it lands in is the sample. The histogram below counts the picks: after a few samples it's noisy, after a thousand it matches the dashed targets. Switch to <i>argmax</i> to see the alternative: A every time.</figcaption>
+</figure>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>A playlist where each song has a weight. <strong>Shuffle</strong> plays songs in proportion to their weights: that’s sampling. <strong>“Play my favourite”</strong> plays the top-weighted song every time: that’s argmax.</p>
+</div>
+</div>
+</section>
+<section id="why-a-choice-blocks-backpropagation" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="why-a-choice-blocks-backpropagation">Why a choice blocks backpropagation</h2>
+<p>Backpropagation needs every step of the computation to answer one question: <em>if my input changes a tiny bit, how much does my output change?</em> That’s the derivative, the slope. Chain enough slopes together and you get the gradient of the loss with respect to every parameter.</p>
+<p>So let’s ask that question of argmax. Write its output as a <strong>one-hot</strong> vector: all zeros, with a single 1 at the chosen category. Now slowly slide the logit <span class="math inline">\(z_A\)</span> and watch what happens to “is A chosen?”.</p>
+<figure class="blog-fig column-body-outset figure" data-fig="argmax-step" aria-label="As z_A slides, the one-hot output of argmax jumps from 0 to 1, with zero slope everywhere else">
+<figcaption><b>Figure 2 · argmax has no useful slope.</b> The logit for A (blue) rises and falls. While A isn't the largest, the output for A stays 0; the moment it overtakes B, it jumps to 1, then stays 1. The gold tangent line is flat everywhere except at the jump, where the slope doesn't exist.</figcaption>
+</figure>
+<p>The output is <strong>piecewise constant</strong>: flat, then a jump, then flat. Its slope is 0 almost everywhere, and undefined at the jump. A gradient of 0 tells the optimiser “nothing you change here matters”, which is false, so learning stalls.</p>
+<p>Sampling has the same problem in a different form. <code>np.random.choice(3, p=p)</code> returns an integer, and the randomness comes from inside the function. There is no smooth path from <span class="math inline">\(p\)</span> to the output for a gradient to follow: nudge <span class="math inline">\(p_A\)</span> from 0.60 to 0.61 and the returned index is either unchanged or jumps to a different category.</p>
+<section id="the-two-classic-workarounds" class="level3">
+<h3 class="anchored" data-anchor-id="the-two-classic-workarounds">The two classic workarounds</h3>
+<p><strong>REINFORCE</strong> (also called the score-function estimator) sidesteps the problem: it never differentiates through the sample, and instead uses <span class="math inline">\(\nabla_p \log p_i\)</span> of the sampled category, weighted by how good the outcome was. It’s unbiased, but its gradient estimates are <strong>noisy</strong> (high variance), so training needs many samples or careful tricks.</p>
+<p><strong>The reparameterization trick</strong> works when the distribution is continuous. To sample from a Gaussian, write <span class="math inline">\(x = \mu + \sigma \cdot \varepsilon\)</span> with <span class="math inline">\(\varepsilon \sim \mathcal{N}(0, 1)\)</span>. The randomness now lives in <span class="math inline">\(\varepsilon\)</span>, an <em>input</em> that doesn’t depend on the parameters, and <span class="math inline">\(x\)</span> is a smooth function of <span class="math inline">\(\mu\)</span> and <span class="math inline">\(\sigma\)</span>. Gradients flow straight through. This is how VAEs train.</p>
+<p>Gumbel-Softmax is the reparameterization trick for <strong>categorical</strong> variables. It needs two ingredients: a smooth stand-in for argmax, and a way to move the randomness into an input.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Nudge a song’s weight from 0.60 to 0.61 and “play my favourite” still plays the same song. Turning the knob a little gives you no feedback about which way to turn it.</p>
+</div>
+</div>
+</section>
+</section>
+<section id="ingredient-1-soften-the-argmax-with-temperature" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="ingredient-1-soften-the-argmax-with-temperature">Ingredient 1: soften the argmax with temperature</h2>
+<p>The <strong>softmax with temperature</strong> divides the logits by a number <span class="math inline">\(\tau &gt; 0\)</span> before the softmax:</p>
+<p><span class="math display">\[
+\text{softmax}(z / \tau)_i = \frac{e^{z_i/\tau}}{\sum_{j} e^{z_j/\tau}}
+\]</span></p>
+<ul>
+<li><strong>Low temperature</strong> (<span class="math inline">\(\tau \to 0\)</span>): differences between logits get magnified, and the output approaches the one-hot argmax.</li>
+<li><strong><span class="math inline">\(\tau = 1\)</span>:</strong> the ordinary softmax.</li>
+<li><strong>High temperature</strong> (<span class="math inline">\(\tau \to \infty\)</span>): differences shrink, and the output approaches uniform, <span class="math inline">\([\tfrac13, \tfrac13, \tfrac13]\)</span>.</li>
+</ul>
+<p>Crucially, at every <span class="math inline">\(\tau\)</span> the output is a <strong>smooth</strong> function of the logits. Here’s the same experiment as Figure 2, with argmax swapped for softmax.</p>
+<figure class="blog-fig column-body-outset figure" data-fig="temperature" aria-label="Softmax with temperature: as tau changes, the curve of the output for A goes from a sharp step to a flat line, always smooth">
+<figcaption><b>Figure 3 · Softmax with temperature.</b> Same sliding logit as Figure 2. The blue curve is the softmax output for A; the dashed line is the argmax step from before. Drag τ down toward 0.1 and the curve hugs the step, but it stays smooth, so the gold slope is never exactly 0. Drag it up toward 10 and the outputs flatten toward one third each.</figcaption>
+</figure>
+<p>That fixes the gradient, but it loses something: softmax is <strong>deterministic</strong>. For the same logits it always returns the same vector. At low temperature it always returns (nearly) the one-hot for A, which is argmax again, not a sample. We need randomness that respects <span class="math inline">\(p\)</span>.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Instead of playing one song, a DJ <strong>crossfades</strong> all of them, each at a volume set by its weight. Temperature is how sharp the crossfade is: at low <span class="math inline">\(\tau\)</span> you hear almost only the top song, at high <span class="math inline">\(\tau\)</span> an even mix. Nudge a weight and the mix changes a little: that’s a slope you can learn from.</p>
+</div>
+</div>
+</section>
+<section id="ingredient-2-the-gumbel-max-trick" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="ingredient-2-the-gumbel-max-trick">Ingredient 2: the Gumbel-Max trick</h2>
+<p>Here’s a remarkable fact. Take the log-probabilities, add a little random noise to each one independently, and take the argmax. If the noise comes from the right distribution, the result is an <strong>exact sample</strong> from <span class="math inline">\(p\)</span>:</p>
+<p><span class="math display">\[
+\arg\max_i \big(\log p_i + g_i\big) \;\sim\; \text{Categorical}(p), \qquad g_1, \dots, g_n \overset{\text{iid}}{\sim} \text{Gumbel}(0, 1)
+\]</span></p>
+<p>The <strong>Gumbel distribution</strong> describes the <em>maximum</em> of many independent random values (it’s an “extreme value” distribution), which is why it fits so neatly with an argmax. You can draw a standard Gumbel sample from a uniform one:</p>
+<p><span class="math display">\[
+u \sim \text{Uniform}(0, 1), \qquad g = -\log\big(-\log u\big)
+\]</span></p>
+<p>Watch it work:</p>
+<figure class="blog-fig column-body-outset figure" data-fig="gumbel-max" aria-label="Gumbel-Max trick: Gumbel noise added to each log-probability, the argmax wins, and the histogram converges to p">
+<div class="fig-info">
+<h4 class="anchored">Reading this figure, step by step</h4>
+<ol>
+<li><b>The dots</b> are the log-probabilities: log 0.6 = −0.51 for A, log 0.3 = −1.20 for B, log 0.1 = −2.30 for C. A starts highest.</li>
+<li><b>The red arrows</b> are Gumbel noise, one fresh draw per category. Each arrow moves its dot up or down to that category's <i>score</i>.</li>
+<li><b>The gold dot</b> is the highest score. That category is this round's sample.</li>
+<li><b>The histogram</b> counts the winners. A wins most often, because it starts highest, but B and C win whenever their noise is large enough. After a couple of thousand rounds the counts sit on 60% / 30% / 10%: exactly p.</li>
+<li><b>Switch to "shared"</b> and every category gets the <i>same</i> noise. Adding the same number to every score never changes which is largest, so A wins every time. Each category needs its own noise.</li>
 </ol>
+</div>
+<figcaption><b>Figure 4 · The Gumbel-Max trick.</b> Each round, every category's log-probability (dot) gets its own Gumbel noise (red arrow), and the highest score (gold) is the sample. The histogram converges to p. Try the <i>shared</i> noise option to see why the noise must be independent per category.</figcaption>
+</figure>
+<p>This is the step that moves the randomness into an input. All the randomness is in <span class="math inline">\(g\)</span>, drawn independently of the network’s parameters; the choice itself is a deterministic function, argmax, of <span class="math inline">\(\log p + g\)</span>.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Why it works (for the curious)
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Let <span class="math inline">\(G_i = \log p_i + g_i\)</span>. A standard Gumbel has CDF <span class="math inline">\(F(x) = e^{-e^{-x}}\)</span>, so <span class="math inline">\(G_i\)</span> has CDF <span class="math inline">\(F_i(x) = \exp(-p_i e^{-x})\)</span> and density <span class="math inline">\(f_i(x) = p_i e^{-x} \exp(-p_i e^{-x})\)</span>. Category <span class="math inline">\(k\)</span> wins when <span class="math inline">\(G_k\)</span> beats every other score:</p>
+<p><span class="math display">\[
+P(\text{k wins}) = \int f_k(x) \prod_{j \ne k} F_j(x)\, dx
+= \int p_k e^{-x} \exp\!\Big(-e^{-x} \sum_j p_j\Big) dx
+= p_k \int e^{-x} e^{-e^{-x}} dx = p_k
+\]</span></p>
+<p>using <span class="math inline">\(\sum_j p_j = 1\)</span>, and the last integral is 1 because <span class="math inline">\(e^{-x} e^{-e^{-x}}\)</span> is the Gumbel density itself.</p>
+</div>
+</div>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Before each song, every track gets a random <strong>mood bonus</strong> added to its weight (on a log scale), and the player plays whichever ends up on top. With Gumbel-shaped bonuses, each song plays exactly as often as its weight says. Give every track the same bonus and nothing changes: the favourite always wins.</p>
+</div>
+</div>
 </section>
-<section id="problem-with-discrete-sampling" class="level2">
-<h2 class="anchored" data-anchor-id="problem-with-discrete-sampling">Problem with Discrete Sampling</h2>
-<p>Sampling methods mentioned in the previous section provide options for both exploration (during data collection) and exploitation (during inference) of the distribution space.</p>
-<p>But, what if sampling is required during training phase e.g sampling vectors from a codebook while training a VQVAE or in tasks like reinforcement learning or generative modeling, where sampling is necessary to explore different actions or outputs.</p>
-<p>Well, the training stage requires all the intermediary operations to be differentiable, for the mighty <em>Backpropagation</em>. Let’s analyze the differentiability of sampling options available to us:</p>
+<section id="putting-them-together-gumbel-softmax" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="putting-them-together-gumbel-softmax">Putting them together: Gumbel-Softmax</h2>
+<p>Now combine the two ingredients. Gumbel-Max is a perfect sampler with an argmax inside; Ingredient 1 is a smooth stand-in for argmax. Swap one for the other:</p>
+<p><span class="math display">\[
+y_i = \frac{\exp\big((\log p_i + g_i)/\tau\big)}{\sum_{j} \exp\big((\log p_j + g_j)/\tau\big)}, \qquad g_i \overset{\text{iid}}{\sim} \text{Gumbel}(0, 1)
+\]</span></p>
+<p>That’s <strong>Gumbel-Softmax</strong> (also published, at the same time, as the <strong>Concrete</strong> distribution). The output <span class="math inline">\(y\)</span> is a <strong>soft sample</strong>: a probability vector that is random, because of <span class="math inline">\(g\)</span>, and close to one-hot, when <span class="math inline">\(\tau\)</span> is small. And for a fixed draw of <span class="math inline">\(g\)</span>, <span class="math inline">\(y\)</span> is a smooth function of <span class="math inline">\(\log p\)</span>, so gradients flow back into whatever produced <span class="math inline">\(p\)</span>.</p>
+<figure class="blog-fig column-body-outset figure" data-fig="gumbel-softmax" aria-label="Gumbel-Softmax: noisy scores, the soft sample y at temperature tau, and the hard one-hot sample, with a strip of recent soft samples">
+<figcaption><b>Figure 5 · Gumbel-Softmax.</b> Every few seconds, fresh Gumbel noise gives new scores (1). The soft sample y (2) is their softmax at temperature τ; the hard sample (3) is their argmax. The strip below shows recent soft samples. Drag τ down to 0.1 and nearly every column is a single colour, in the right proportions; drag it up to 5 and every column is a blend.</figcaption>
+</figure>
+</section>
+<section id="choosing-the-temperature" class="level2">
+<h2 class="anchored" data-anchor-id="choosing-the-temperature">Choosing the temperature</h2>
+<p>Temperature trades <strong>bias</strong> against <strong>variance</strong>:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 33%">
+<col style="width: 33%">
+<col style="width: 33%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>Low τ (e.g.&nbsp;0.1)</th>
+<th>High τ (e.g.&nbsp;5)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Samples <span class="math inline">\(y\)</span></td>
+<td>nearly one-hot, close to real samples</td>
+<td>soft blends, far from real samples</td>
+</tr>
+<tr class="even">
+<td>Bias of the gradient</td>
+<td>small</td>
+<td>large</td>
+</tr>
+<tr class="odd">
+<td>Variance of the gradient</td>
+<td>large: the curve is nearly a step, so slopes are huge near ties and tiny elsewhere</td>
+<td>small: the curve is gentle everywhere</td>
+</tr>
+</tbody>
+</table>
+<p>A common recipe is to <strong>anneal</strong>: start around <span class="math inline">\(\tau = 1\)</span>, where training is stable, and lower it gradually toward 0.5 or below, so the samples become nearly discrete by the end.</p>
+</section>
+<section id="the-straight-through-trick" class="level2">
+<h2 class="anchored" data-anchor-id="the-straight-through-trick">The straight-through trick</h2>
+<p>Sometimes the downstream computation genuinely needs a discrete choice, for example to look up exactly one codebook vector. The <strong>straight-through</strong> Gumbel-Softmax uses the hard sample in the forward pass and the soft sample’s gradient in the backward pass:</p>
+<p><span class="math display">\[
+y_{\text{hard}} = \text{one\_hot}\big(\arg\max_i y_i\big), \qquad
+y_{\text{st}} = y_{\text{hard}} - \text{stopgrad}(y) + y
+\]</span></p>
+<p>In the forward pass, <span class="math inline">\(-\text{stopgrad}(y) + y\)</span> cancels to zero, so the value is exactly <span class="math inline">\(y_{\text{hard}}\)</span>. In the backward pass, <span class="math inline">\(\text{stopgrad}\)</span> blocks one copy of <span class="math inline">\(y\)</span> and <span class="math inline">\(y_{\text{hard}}\)</span> has no gradient, so the gradient is the gradient of <span class="math inline">\(y\)</span>. The gradient is now slightly biased, since it belongs to a different value than the one used, but it works well in practice.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Play only the top song after the mood bonus, but <strong>learn as if</strong> the DJ had played the crossfade.</p>
+</div>
+</div>
+</section>
+<section id="in-code" class="level2">
+<h2 class="anchored" data-anchor-id="in-code">In code</h2>
+<p>From scratch, in PyTorch:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb1"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb1-1"><a href="#cb1-1" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch</span>
+<span id="cb1-2"><a href="#cb1-2" aria-hidden="true" tabindex="-1"></a><span class="im">import</span> torch.nn.functional <span class="im">as</span> F</span>
+<span id="cb1-3"><a href="#cb1-3" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb1-4"><a href="#cb1-4" aria-hidden="true" tabindex="-1"></a><span class="kw">def</span> gumbel_softmax(logits, tau<span class="op">=</span><span class="fl">1.0</span>, hard<span class="op">=</span><span class="va">False</span>):</span>
+<span id="cb1-5"><a href="#cb1-5" aria-hidden="true" tabindex="-1"></a>    u <span class="op">=</span> torch.rand_like(logits).clamp(<span class="fl">1e-10</span>, <span class="dv">1</span> <span class="op">-</span> <span class="fl">1e-10</span>)</span>
+<span id="cb1-6"><a href="#cb1-6" aria-hidden="true" tabindex="-1"></a>    g <span class="op">=</span> <span class="op">-</span>torch.log(<span class="op">-</span>torch.log(u))             <span class="co"># one Gumbel(0, 1) per category</span></span>
+<span id="cb1-7"><a href="#cb1-7" aria-hidden="true" tabindex="-1"></a>    y <span class="op">=</span> F.softmax((logits <span class="op">+</span> g) <span class="op">/</span> tau, dim<span class="op">=-</span><span class="dv">1</span>)  <span class="co"># soft sample</span></span>
+<span id="cb1-8"><a href="#cb1-8" aria-hidden="true" tabindex="-1"></a>    <span class="cf">if</span> hard:                                   <span class="co"># straight-through</span></span>
+<span id="cb1-9"><a href="#cb1-9" aria-hidden="true" tabindex="-1"></a>        y_hard <span class="op">=</span> F.one_hot(y.argmax(dim<span class="op">=-</span><span class="dv">1</span>), y.shape[<span class="op">-</span><span class="dv">1</span>]).to(y.dtype)</span>
+<span id="cb1-10"><a href="#cb1-10" aria-hidden="true" tabindex="-1"></a>        y <span class="op">=</span> y_hard <span class="op">-</span> y.detach() <span class="op">+</span> y</span>
+<span id="cb1-11"><a href="#cb1-11" aria-hidden="true" tabindex="-1"></a>    <span class="cf">return</span> y</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
+<p><code>logits</code> can be unnormalised scores or log-probabilities: softmax ignores a shared constant. PyTorch also ships this as <a href="https://pytorch.org/docs/stable/generated/torch.nn.functional.gumbel_softmax.html"><code>torch.nn.functional.gumbel_softmax(logits, tau, hard)</code></a>.</p>
+</section>
+<section id="cheat-sheet" class="level2">
+<h2 class="anchored" data-anchor-id="cheat-sheet">Cheat sheet</h2>
+<p>Three ideas that are easy to mix up, and the terms they rely on.</p>
+<div class="post-cheat">
+<section id="ideas" class="level4 sw">
+<h4 class="anchored" data-anchor-id="ideas">Ideas</h4>
+<dl>
+<dt>Gumbel-Max trick</dt>
+<dd>
+<span class="math inline">\(\arg\max_i (\log p_i + g_i)\)</span> with iid Gumbel noise is an exact sample from <span class="math inline">\(p\)</span>. Not differentiable.
+</dd>
+<dt>Gumbel-Softmax</dt>
+<dd>
+Replace that argmax with <span class="math inline">\(\text{softmax}(\cdot/\tau)\)</span>. Random, nearly one-hot at low τ, differentiable.
+</dd>
+<dt>Straight-through</dt>
+<dd>
+Hard one-hot forward, soft gradient backward.
+</dd>
+</dl>
+</section>
+<section id="terms" class="level4 hw">
+<h4 class="anchored" data-anchor-id="terms">Terms</h4>
+<dl>
+<dt>Logits</dt>
+<dd>
+Raw scores a network outputs; softmax turns them into probabilities.
+</dd>
+<dt>One-hot</dt>
+<dd>
+All zeros except a single 1 at the chosen category.
+</dd>
+<dt>Temperature τ</dt>
+<dd>
+Divides the logits: low τ is sharp, high τ is flat.
+</dd>
+<dt>Reparameterization</dt>
+<dd>
+Move the randomness into an input, so the output is a smooth function of the parameters.
+</dd>
+</dl>
+</section>
+</div>
+<div class="post-tldr">
+<p><strong>The ideas to remember</strong></p>
 <ol type="1">
-<li><code>argmax</code> being a discontinuous function everywhere, i.e.&nbsp;<span class="math inline">\(\quad\lim_{h\to0}f(x+h) \neq \lim_{h\to0}f(x+h) \neq f(x)\)</span> is clearly not differentiable.</li>
-<li>random selection methods like <code>np.random.choice</code> are also non-differentiable.</li>
+<li>argmax and sampling output a discrete choice, and a discrete choice has zero or undefined slope, so backpropagation stops there.</li>
+<li>Softmax with temperature is a smooth stand-in for argmax: low τ approaches one-hot, high τ approaches uniform.</li>
+<li>Gumbel-Max: adding independent Gumbel noise to log-probabilities and taking the argmax gives an exact sample.</li>
+<li>Gumbel-Softmax = Gumbel-Max with the argmax replaced by a softmax at temperature τ: random, nearly discrete, and differentiable.</li>
+<li>Lower τ means less bias but noisier gradients; anneal it. Use straight-through when the forward pass must be truly discrete.</li>
 </ol>
-<p>Now that we have a clear picture of the problem, lets build up to the Gumbel Softmax and find out how it overcomes the impediment of non-differentiability.</p>
+</div>
 </section>
-<section id="gumbel-softmax" class="level2">
-<h2 class="anchored" data-anchor-id="gumbel-softmax">Gumbel Softmax</h2>
-<p>As mentioned in the previous section, we need a differentiable solution for argmax-styled determinism and stochastic nature of random selection to maintain the exploration &amp; exploitation.</p>
-<p>We’ll now discuss the proposed two-fold solution:</p>
-<section id="softmax-with-temperature" class="level3">
-<h3 class="anchored" data-anchor-id="softmax-with-temperature">Softmax with temperature</h3>
-<p>The <em>softmax with temperature</em> modifies the output probabilities of a categorical distribution by scaling the logits <span class="math inline">\(z\)</span> with a temperature parameter <span class="math inline">\(\tau\)</span>:</p>
-<p><span class="math display">\[
-\text{softmax}(z_i, \tau) = \frac{e^{z_i/\tau}}{\sum_{j=1}^{n} e^{z_j/\tau}}
-\]</span></p>
-<ul>
-<li><p><strong><em>High Temperature (</em></strong><span class="math inline">\(\tau \to \infty\)</span><strong><em>)</em></strong>: Makes probabilities more uniform</p></li>
-<li><p><strong><em>Low Temperature (</em></strong><span class="math inline">\(\tau \to 0\)</span><strong><em>)</em></strong>: Sharpens the probability, approximation of one-hot vector</p></li>
-</ul>
-<div class="cell">
-<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code hidden" id="cb1" data-startfrom="71" data-source-offset="-1"><pre class="sourceCode js code-with-copy"><code class="sourceCode javascript" style="counter-reset: source-line 70;"><span id="cb1-71"><a href="#cb1-71" aria-hidden="true" tabindex="-1"></a><span class="kw">function</span> <span class="fu">softmax</span>(logits<span class="op">,</span> temp){</span>
-<span id="cb1-72"><a href="#cb1-72" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> sum<span class="op">=</span><span class="dv">0</span></span>
-<span id="cb1-73"><a href="#cb1-73" aria-hidden="true" tabindex="-1"></a>  <span class="cf">for</span> (<span class="kw">let</span> index <span class="op">=</span> <span class="dv">0</span><span class="op">;</span> index <span class="op">&lt;</span> logits<span class="op">.</span><span class="at">length</span><span class="op">;</span> index<span class="op">++</span>) {</span>
-<span id="cb1-74"><a href="#cb1-74" aria-hidden="true" tabindex="-1"></a>    sum<span class="op">+=</span> <span class="bu">Math</span><span class="op">.</span><span class="fu">exp</span>((logits[index] <span class="op">+</span> <span class="fl">1e-8</span>)<span class="op">/</span>temp)</span>
-<span id="cb1-75"><a href="#cb1-75" aria-hidden="true" tabindex="-1"></a>  }</span>
-<span id="cb1-76"><a href="#cb1-76" aria-hidden="true" tabindex="-1"></a>  <span class="kw">let</span> probs <span class="op">=</span> logits<span class="op">.</span><span class="fu">map</span>(x<span class="kw">=&gt;</span> <span class="bu">Math</span><span class="op">.</span><span class="fu">exp</span>((x <span class="op">+</span> <span class="fl">1e-8</span>)<span class="op">/</span>temp)<span class="op">/</span>sum)</span>
-<span id="cb1-77"><a href="#cb1-77" aria-hidden="true" tabindex="-1"></a>  <span class="cf">return</span> probs</span>
-<span id="cb1-78"><a href="#cb1-78" aria-hidden="true" tabindex="-1"></a>}</span>
-<span id="cb1-79"><a href="#cb1-79" aria-hidden="true" tabindex="-1"></a>prob <span class="op">=</span> <span class="bu">Array</span><span class="op">.</span><span class="fu">from</span>({<span class="dt">length</span><span class="op">:</span> <span class="dv">5</span>}<span class="op">,</span> ()<span class="kw">=&gt;</span><span class="bu">Math</span><span class="op">.</span><span class="fu">random</span>()<span class="op">*</span><span class="dv">10</span>)</span>
-<span id="cb1-80"><a href="#cb1-80" aria-hidden="true" tabindex="-1"></a>viewof gain <span class="op">=</span> Inputs<span class="op">.</span><span class="fu">range</span>([<span class="fl">0.1</span><span class="op">,</span> <span class="dv">50</span>]<span class="op">,</span> {<span class="dt">value</span><span class="op">:</span> <span class="dv">20</span><span class="op">,</span> <span class="dt">step</span><span class="op">:</span> <span class="fl">0.1</span><span class="op">,</span> <span class="dt">label</span><span class="op">:</span> <span class="st">"Temperature (τ)   "</span>})</span>
-<span id="cb1-81"><a href="#cb1-81" aria-hidden="true" tabindex="-1"></a>Plot<span class="op">.</span><span class="fu">barY</span>(<span class="fu">softmax</span>(prob<span class="op">,</span> gain)</span>
-<span id="cb1-82"><a href="#cb1-82" aria-hidden="true" tabindex="-1"></a> )<span class="op">.</span><span class="fu">plot</span>({<span class="dt">x</span><span class="op">:</span> {<span class="dt">label</span><span class="op">:</span> <span class="st">"Categories"</span>}<span class="op">,</span> <span class="dt">y</span><span class="op">:</span> {<span class="dt">label</span><span class="op">:</span> <span class="st">"Probs"</span>}})</span></code></pre></div><button title="Copy to Clipboard" class="code-copy-button"><i class="bi"></i></button></div>
-<div class="cell-output cell-output-display">
-<div>
-<div id="ojs-cell-1-1" data-nodetype="declaration">
-
-</div>
-</div>
-</div>
-<div class="cell-output cell-output-display">
-<div>
-<div id="ojs-cell-1-2" data-nodetype="declaration">
-
-</div>
-</div>
-</div>
-<div class="cell-output cell-output-display">
-<div>
-<div id="ojs-cell-1-3" data-nodetype="declaration">
-
-</div>
-</div>
-</div>
-<div class="cell-output cell-output-display">
-<div>
-<div id="ojs-cell-1-4" data-nodetype="expression">
-
-</div>
-</div>
-</div>
-</div>
-<p>This approach provides a differentiable alternative to argmax-styled one-hot approximation (at low temperatures). However, it still fails to introduce <strong>stochasticity</strong> at low temperatures. It always outputs a deterministic distribution for a given set of logits <span class="math inline">\(z\)</span> .</p>
+<section id="back-to-where-we-started" class="level2">
+<h2 class="anchored" data-anchor-id="back-to-where-we-started">Back to where we started</h2>
+<p>The discrete VAE picking a codebook entry, the agent picking an action, the model picking a word: each one used to be a wall that gradients couldn’t cross. Now each choice is <span class="math inline">\(\text{softmax}\big((\log p + g)/\tau\big)\)</span>: the randomness lives in <span class="math inline">\(g\)</span>, the choice is smooth in <span class="math inline">\(p\)</span>, and the network can learn which way to turn every knob. The DALL·E paper used exactly this relaxation, annealing τ toward a small value, to train the discrete VAE that turns images into tokens.</p>
 </section>
-<section id="gumbel-noise" class="level3">
-<h3 class="anchored" data-anchor-id="gumbel-noise">Gumbel Noise</h3>
-<p>Stochasticity is needed to encourage exploration and mimic random sampling from given categorical distribution. We can inject this stochasticity through perturbing the logits by adding a noise <span class="math inline">\(\epsilon\)</span> value before applying softmax.</p>
-<p>Gumbel noise emerges as the perfect candidate for this because of following properties:</p>
+<section id="further-reading" class="level2">
+<h2 class="anchored" data-anchor-id="further-reading">Further reading</h2>
 <ul>
-<li><p>It is mathematically aligned with categorical distributions and enables differentiable approximation of discrete sampling via the Gumbel-Softmax trick.</p></li>
-<li><p>It introduces randomness in a way that respects the structure of categorical distributions while enabling gradient-based optimization.</p></li>
+<li><a href="https://arxiv.org/abs/1611.01144">Jang, Gu &amp; Poole (2016), <em>Categorical Reparameterization with Gumbel-Softmax</em></a>: the paper that named it, with the straight-through variant.</li>
+<li><a href="https://arxiv.org/abs/1611.00712">Maddison, Mnih &amp; Teh (2016), <em>The Concrete Distribution</em></a>: the same idea, published at the same time, with a careful look at its density.</li>
+<li><a href="https://blog.evjang.com/2016/11/tutorial-categorical-variational.html">Eric Jang, <em>Tutorial: Categorical Variational Autoencoders using Gumbel-Softmax</em></a>: a hands-on walkthrough with code.</li>
+<li><a href="https://arxiv.org/abs/2102.12092">Ramesh et al.&nbsp;(2021), <em>Zero-Shot Text-to-Image Generation</em></a>: the DALL·E paper, a large-scale use of the Gumbel-Softmax relaxation.</li>
 </ul>
-<p>Gumble noise <span class="math inline">\(\epsilon\)</span> is sampled from the standard <a href="https://en.wikipedia.org/wiki/Gumbel_distribution"><strong><em>Gumbel distribution</em></strong></a>. We can draw such noise samples by first computing <span class="math inline">\(u \sim Uniform(0, 1)\)</span> and then computing <span class="math inline">\(\epsilon = -\log(-\log(u))\)</span> .</p>
-<p>Now putting it all together we have the Gumble Softmax Equation as:</p>
-<p><span class="math display">\[
-GumbelSoftmax(z_i, \tau) =  \frac{e^{(z_i + \epsilon)/\tau}}{\sum_{j=1}^{n} e^{(z_j + \epsilon)/\tau}}
-\]</span></p>
-<ul>
-<li><p><strong>Stochasticity</strong>: <span class="math inline">\(\epsilon\)</span> injects randomness, enabling exploration.</p></li>
-<li><p><strong>Differentiability</strong>: The softmax function ensures the operation is differentiable.</p></li>
-<li><p><strong>Control</strong>: <span class="math inline">\(\tau\)</span> adjusts the trade-off between exploration and exploitation.</p></li>
-</ul>
+<p><em>The figures are drawn live in your browser, with a fixed random seed so each animation replays the same way. Figures 1 and 4 speed up after the first few samples so the histograms have time to settle.</em></p>
+<script src="../../assets/blog-figs.js"></script>
+<script src="figs.js"></script>
 
 
-</section>
 </section>
 
 </main> <!-- /main -->
@@ -607,17 +812,6 @@ GumbelSoftmax(z_i, \tau) =  \frac{e^{(z_i + \epsilon)/\tau}}{\sum_{j=1}^{n} e^{(
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', build); else build();
 })();
-</script>
-<script type="ojs-module-contents">
-eyJjb250ZW50cyI6W3sibWV0aG9kTmFtZSI6ImludGVycHJldCIsImNlbGxOYW1lIjoib2pzLWNlbGwtMSIsImlubGluZSI6ZmFsc2UsInNvdXJjZSI6IlxuZnVuY3Rpb24gc29mdG1heChsb2dpdHMsIHRlbXApe1xuICBsZXQgc3VtPTBcbiAgZm9yIChsZXQgaW5kZXggPSAwOyBpbmRleCA8IGxvZ2l0cy5sZW5ndGg7IGluZGV4KyspIHtcbiAgICBzdW0rPSBNYXRoLmV4cCgobG9naXRzW2luZGV4XSArIDFlLTgpL3RlbXApXG4gIH1cbiAgbGV0IHByb2JzID0gbG9naXRzLm1hcCh4PT4gTWF0aC5leHAoKHggKyAxZS04KS90ZW1wKS9zdW0pXG4gIHJldHVybiBwcm9ic1xufVxucHJvYiA9IEFycmF5LmZyb20oe2xlbmd0aDogNX0sICgpPT5NYXRoLnJhbmRvbSgpKjEwKVxudmlld29mIGdhaW4gPSBJbnB1dHMucmFuZ2UoWzAuMSwgNTBdLCB7dmFsdWU6IDIwLCBzdGVwOiAwLjEsIGxhYmVsOiBcIlRlbXBlcmF0dXJlICjPhCkgICBcIn0pXG5QbG90LmJhclkoc29mdG1heChwcm9iLCBnYWluKVxuICkucGxvdCh7eDoge2xhYmVsOiBcIkNhdGVnb3JpZXNcIn0sIHk6IHtsYWJlbDogXCJQcm9ic1wifX0pXG4ifSx7Im1ldGhvZE5hbWUiOiJpbnRlcnByZXRRdWlldCIsInNvdXJjZSI6InNoaW55SW5wdXQoJ2dhaW4nKSJ9XX0=
-</script>
-<script type="module">
-if (window.location.protocol === "file:") { alert("The OJS runtime does not work with file:// URLs. Please use a web server to view this document."); }
-window._ojs.paths.runtimeToDoc = "../../posts/differentiable-sampling";
-window._ojs.paths.runtimeToRoot = "../..";
-window._ojs.paths.docToRoot = "../..";
-window._ojs.selfContained = false;
-window._ojs.runtime.interpretFromScriptTags();
 </script>
 <script id="quarto-html-after-body" type="application/javascript">
   window.document.addEventListener("DOMContentLoaded", function (event) {
