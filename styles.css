@@ -109,3 +109,32 @@ main.content code, pre code{font-family:"Source Code Pro", SFMono-Regular, Menlo
 .quarto-about-trestles .about-entity .about-link{font-family:var(--d-sans);font-size:.85rem;border-color:var(--d-rule2);color:var(--d-ink)}
 .quarto-about-trestles .about-entity .about-link:hover{color:var(--d-link);border-color:var(--d-link)}
 .quarto-about-trestles .about-contents h2{margin-top:2rem}
+
+/* light/dark toggle: a sun in dark mode (click for light), a moon in light mode (click for dark) */
+.quarto-color-scheme-toggle .bi::before{
+  background-image:none !important; background-color:var(--d-muted);
+  width:1.25rem !important; height:1.25rem !important; vertical-align:-.2em;
+  -webkit-mask:var(--theme-icon) center/contain no-repeat; mask:var(--theme-icon) center/contain no-repeat;
+  transition:transform .35s ease, background-color .2s ease;
+}
+.quarto-color-scheme-toggle:hover .bi::before{background-color:var(--d-h-main, var(--d-ink)); transform:rotate(25deg)}
+body.quarto-dark .quarto-color-scheme-toggle{--theme-icon:url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2" fill="black"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.55 1.55M17.15 17.15l1.55 1.55M5.3 18.7l1.55-1.55M17.15 6.85l1.55-1.55"/></svg>')}
+body.quarto-light .quarto-color-scheme-toggle{--theme-icon:url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="black" d="M20.5 14.6A8.6 8.6 0 0 1 9.4 3.5a8.6 8.6 0 1 0 11.1 11.1z"/></svg>')}
+
+/* desktop: theme switch sits right beside the blog name (phones already show it there) */
+@media (min-width: 992px){
+  #quarto-header .navbar-container{display:flex;align-items:center}
+  #quarto-header .navbar-brand-container{order:0;margin-left:0 !important;margin-right:.35rem !important}
+  #quarto-header .quarto-navbar-tools{order:1;margin:0 !important;padding:0}
+  #quarto-header .navbar-collapse{order:2}
+  #quarto-header #quarto-search{order:3}
+}
+
+/* logo: a ∇ (the gradient, direction of steepest rise; abhyudaya = rise) + Abhyuday.
+   ∇ is gold in dark mode, sage in light mode. */
+#quarto-header .navbar-title{font-family:var(--d-serif);font-weight:600;letter-spacing:.005em;font-size:1.3rem;color:var(--d-ink);display:inline-flex;align-items:center;gap:.5rem}
+#quarto-header .navbar-title::before{content:"";display:inline-block;width:1.05rem;height:1.05rem;background-color:var(--logo-nabla);
+  -webkit-mask:url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="11 14 42 38"><path fill-rule="evenodd" d="M11 14H53L32 52Z M22.5 18.6H45.4L33.3 40.6Z"/></svg>') center/contain no-repeat;
+  mask:url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="11 14 42 38"><path fill-rule="evenodd" d="M11 14H53L32 52Z M22.5 18.6H45.4L33.3 40.6Z"/></svg>') center/contain no-repeat}
+body.quarto-dark{--logo-nabla:#E0C27A}
+body.quarto-light{--logo-nabla:#4E8478}

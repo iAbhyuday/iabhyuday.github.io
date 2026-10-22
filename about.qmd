@@ -7,9 +7,6 @@ about:
   image-shape: round
   image-width: 14em
   links:
-    - icon: github
-      text: GitHub
-      href: https://github.com/iAbhyuday
     - icon: linkedin
       text: LinkedIn
       href: https://www.linkedin.com/in/iabhyuday

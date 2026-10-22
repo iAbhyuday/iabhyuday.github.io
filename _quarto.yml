@@ -4,20 +4,20 @@ project:
     - assets/
 
 website:
-  title: "iabhyuday"
+  title: "Abhyuday"
   site-url: https://iabhyuday.github.io
-  description: "Visual, first-principles explanations of how GPUs and deep learning actually work, by Abhyuday Tripathi."
+  description: "Notes from what I'm learning, explained the way I wish someone had explained it to me. By Abhyuday Tripathi."
   favicon: favicon.svg
   open-graph: true
   twitter-card:
     creator: "@abhyu97"
   navbar:
+    title: "Abhyuday"
     right:
+      - text: Posts
+        href: index.qmd
       - text: About
         href: about.qmd
-      - icon: github
-        href: https://github.com/iAbhyuday
-        aria-label: GitHub
       - icon: linkedin
         href: https://www.linkedin.com/in/iabhyuday
         aria-label: LinkedIn

@@ -1,6 +1,6 @@
 ---
 title: "Blog"
-description: "Visual, first-principles explanations of how GPUs and deep learning actually work. Every idea built up step by step, with animations you can play with."
+description: "Notes from what I'm learning, explained the way I wish someone had explained it to me."
 listing:
   contents: posts
   sort: "date desc"
