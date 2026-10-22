@@ -1,6 +1,6 @@
 ---
 title: "Blog"
-description: "What I'm learning, worked out from first principles and shared one step at a time."
+description: "Notes from what I'm learning, explained the way I wish someone had explained it to me."
 listing:
   contents: posts
   sort: "date desc"
