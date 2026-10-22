@@ -660,7 +660,7 @@ D = A \times B + C
 <p>A <strong>Tensor Core</strong> executes MMAs. For example, the instruction <code>mma.sync.m16n8k16</code> multiplies a 16×16 tile by a 16×8 tile: that’s <span class="math inline">\(16 \times 8 \times 16 = 2{,}048\)</span> FMAs from a single warp instruction. Hopper adds an even larger form, <code>wgmma</code>, issued by a <strong>warpgroup</strong> of 4 warps (one in each sub-partition), which can read its operands straight from shared memory.</p>
 <p>Here’s the difference in action: both sides compute the same 16×16 output tile with <span class="math inline">\(K = 16\)</span>, which is 4,096 FMAs.</p>
 <figure class="gpu-fig column-body-outset figure" data-fig="cores" aria-label="Race between 32 CUDA cores and one Tensor Core computing the same tile">
-<figcaption><b>Figure 5 · The race.</b> 32 CUDA cores do 32 FMAs per clock and need 128 clocks. One Tensor Core in the same sub-partition does 512 FP16 FMAs per clock and needs 8. Per SM, that's 128 vs 2,048 multiply-adds per clock: 16× more.</figcaption>
+<figcaption><b>Figure 5 · The race.</b> Each square is one output number, and each takes 16 FMAs (K = 16). On the left, each of the 32 lanes owns one square and adds one product per clock, so a band of 32 squares fills together over 16 clocks; 8 rounds make 128 clocks. One Tensor Core in the same sub-partition does 512 FP16 FMAs per clock and needs 8. Per SM, that's 128 vs 2,048 multiply-adds per clock: 16× more.</figcaption>
 </figure>
 <p>That gap is why the H100’s peak numbers look so different depending on which unit you use and which number format it works in.</p>
 <div class="callout callout-style-default callout-note callout-titled">
