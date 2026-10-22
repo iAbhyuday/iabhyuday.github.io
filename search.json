@@ -1,5 +1,12 @@
 [
   {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Blog",
+    "section": "",
+    "text": "How a GPU Works: A Visual Tour of the H100\n\n\n\ngpu\n\ndeep-learning\n\nhardware\n\n\n\nSMs, warps, lanes, CUDA cores, Tensor Cores, HBM, SRAM, bandwidth and FLOPs, explained with animations and built up one idea at a time.\n\n\n\n\n\nOct 21, 2026\n\n\nAbhyuday\n\n\n\n\n\n\n\n\n\n\n\n\nGumbel-Softmax: Differentiable Sampling from Discrete Distributions\n\n\n\ndeep-learning\n\nprobability\n\n\n\nWhy picking one option from a probability distribution blocks backpropagation, and how the Gumbel-Max trick plus a softmax with temperature lets gradients through. Built up step by step, with interactive figures.\n\n\n\n\n\nDec 23, 2024\n\n\nAbhyuday\n\n\n\n\n\nNo matching items"
+  },
+  {
     "objectID": "about.html",
     "href": "about.html",
     "title": "Abhyuday Tripathi",
@@ -117,13 +124,6 @@
     "title": "How a GPU Works: A Visual Tour of the H100",
     "section": "Further reading",
     "text": "Further reading\n\nNVIDIA Hopper Architecture In-Depth: NVIDIA’s own tour of the H100, including SM diagrams, TMA and the Tensor Core details.\nCUDA C++ Programming Guide: the reference for threads, blocks, warps and the memory hierarchy.\nMaking Deep Learning Go Brrrr From First Principles by Horace He: a great follow-up on compute-, memory- and overhead-bound workloads.\nRoofline: An Insightful Visual Performance Model by Williams, Waterman and Patterson: the original roofline paper.\nFlashAttention by Dao et al.: tiling and SRAM reuse applied to attention.\nCUTLASS: NVIDIA’s open-source templates for writing tiled GEMM kernels.\n\nSpec figures are from NVIDIA’s H100 product page and Hopper whitepaper, quoted dense (NVIDIA’s Tensor Core figures are listed with sparsity, which doubles them). Latencies are approximate and vary with access pattern. The animations are simplified models, slowed down and scaled so each idea is visible."
-  },
-  {
-    "objectID": "index.html",
-    "href": "index.html",
-    "title": "Blog",
-    "section": "",
-    "text": "How a GPU Works: A Visual Tour of the H100\n\n\n\ngpu\n\ndeep-learning\n\nhardware\n\n\n\nSMs, warps, lanes, CUDA cores, Tensor Cores, HBM, SRAM, bandwidth and FLOPs, explained with animations and built up one idea at a time.\n\n\n\n\n\nOct 21, 2026\n\n\nAbhyuday\n\n\n\n\n\n\n\n\n\n\n\n\nGumbel-Softmax: Differentiable Sampling from Discrete Distributions\n\n\n\ndeep-learning\n\nprobability\n\n\n\nWhy picking one option from a probability distribution blocks backpropagation, and how the Gumbel-Max trick plus a softmax with temperature lets gradients through. Built up step by step, with interactive figures.\n\n\n\n\n\nDec 23, 2024\n\n\nAbhyuday\n\n\n\n\n\nNo matching items"
   },
   {
     "objectID": "posts/differentiable-sampling/index.html",

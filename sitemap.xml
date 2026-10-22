@@ -1,19 +1,19 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
   <url>
+    <loc>https://iabhyuday.github.io/index.html</loc>
+    <lastmod>2026-10-22T09:12:38.005Z</lastmod>
+  </url>
+  <url>
     <loc>https://iabhyuday.github.io/about.html</loc>
-    <lastmod>2026-10-22T08:37:47.268Z</lastmod>
+    <lastmod>2026-10-22T09:12:38.005Z</lastmod>
   </url>
   <url>
     <loc>https://iabhyuday.github.io/posts/how-a-gpu-works/index.html</loc>
-    <lastmod>2026-10-22T08:37:47.270Z</lastmod>
-  </url>
-  <url>
-    <loc>https://iabhyuday.github.io/index.html</loc>
-    <lastmod>2026-10-22T08:37:47.268Z</lastmod>
+    <lastmod>2026-10-22T09:12:38.006Z</lastmod>
   </url>
   <url>
     <loc>https://iabhyuday.github.io/posts/differentiable-sampling/index.html</loc>
-    <lastmod>2026-10-22T08:37:47.269Z</lastmod>
+    <lastmod>2026-10-22T09:12:38.006Z</lastmod>
   </url>
 </urlset>

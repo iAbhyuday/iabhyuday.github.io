@@ -5,10 +5,10 @@
       xmlns:dc="http://purl.org/dc/elements/1.1/" 
       version="2.0">
 <channel>
-<title>iabhyuday</title>
+<title>Abhyuday</title>
 <link>https://iabhyuday.github.io/</link>
 <atom:link href="https://iabhyuday.github.io/index.xml" rel="self" type="application/rss+xml"/>
-<description>Visual, first-principles explanations of how GPUs and deep learning actually work. Every idea built up step by step, with animations you can play with.</description>
+<description>Notes from what I&#39;m learning, explained the way I wish someone had explained it to me.</description>
 <generator>quarto-1.10.19</generator>
 <lastBuildDate>Wed, 21 Oct 2026 00:00:00 GMT</lastBuildDate>
 <item>
