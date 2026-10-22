@@ -1,109 +1,297 @@
 ---
-title: "Gumbel Softmax: Differentiable Sampling from Discrete Distributions"
+title: "Gumbel-Softmax: Differentiable Sampling from Discrete Distributions"
+description: "Why picking one option from a probability distribution blocks backpropagation, and how the Gumbel-Max trick plus a softmax with temperature lets gradients through. Built up step by step, with interactive figures."
 date: "2024-12-23"
-description: "Why sampling from a categorical distribution breaks backpropagation, and how softmax with temperature plus Gumbel noise makes it differentiable."
+date-modified: "2026-10-22"
 author: "Abhyuday"
+categories: [deep-learning, probability]
 image: thumbnail.png
-execute:
-  echo: false
-categories: [deep-learning, probability, code]
+resources:
+  - figs.js
+format:
+  html:
+    css: ../../assets/blog-components.css
 ---
 
-Discrete sampling plays a crucial role in many machine learning tasks, such as classification, reinforcement learning, and generative modeling. Whether you're predicting the next action for a reinforcement learning agent or selecting vectors from a codebook in a VQ-VAE, the process often involves choosing one value from a predefined set of categories based on a probability distribution.
+Some neural networks have to make a **choice** in the middle of their computation. A discrete VAE picks one entry from a codebook of learned vectors. A reinforcement-learning agent picks one action out of ten. A model that learns to send messages picks one word. The network outputs probabilities, then *one* option is drawn and used downstream.
 
-However, during training, this sampling process encounters a major roadblock: the lack of differentiability. This makes backpropagation—essential for optimizing neural networks—impossible. Enter **Gumbel-Softmax**, a technique that enables differentiable sampling while retaining the key properties of discrete sampling. In this blog post, we’ll explore the problem, dissect the Gumbel-Softmax trick, and understand how it solves this challenge.
+Training that network means asking a gradient question: *if I nudged these probabilities, how would the final loss change?* And the moment you draw a single option, that question has no useful answer. Backpropagation stops at the choice.
 
-## What is Discrete Sampling
+In this post, we'll build up the fix, **Gumbel-Softmax**, one idea at a time: what sampling is, exactly why it blocks gradients, how a softmax with temperature softens a choice, and how Gumbel noise puts the randomness back. Every figure is a small animation you can pause, restart and play with.
 
-Discrete sampling refers to selecting the value of a random variable from a given discrete probability distribution $p$, defined as:
+By the end, **Gumbel-Max**, **temperature** and the **straight-through** trick should feel concrete.
 
-$$
-p = [p_1, p_2, ..., p_n] \quad where \quad \sum_{i=1}^n p_i = 1
-$$
+## Choosing one thing: categorical distributions
 
-For example, $p = [0.6, 0.3, 0.1]$ is a categorical distribution over three classes,
-
--   We can select first class with probability: $P(X=1) = 0.6$ \quad i.e. 60%
-
--   We can select second class with probability: $P(X=2) = 0.3$ \quad i.e. 30%
-
--   We can select third class with probability: $P(X=3) = 0.1$ \quad i.e. 10%
-
-In practice, Sampling process is usually performed using:
-
-1.  `argmax` selecting the value with highest probability. e.g. inference on a multi-class classifier.
-
-2.  `np.random.choice` selecting a random item with corresponding probability. e.g. a RL agent exploring the discrete action space.
-
-## Problem with Discrete Sampling
-
-Sampling methods mentioned in the previous section provide options for both exploration (during data collection) and exploitation (during inference) of the distribution space.
-
-But, what if sampling is required during training phase e.g sampling vectors from a codebook while training a VQVAE or in tasks like reinforcement learning or generative modeling, where sampling is necessary to explore different actions or outputs.
-
-Well, the training stage requires all the intermediary operations to be differentiable, for the mighty *Backpropagation*. Let's analyze the differentiability of sampling options available to us:
-
-1.  `argmax` being a discontinuous function everywhere, i.e. $\quad\lim_{h\to0}f(x+h) \neq \lim_{h\to0}f(x+h) \neq f(x)$ is clearly not differentiable.
-2.  random selection methods like `np.random.choice` are also non-differentiable.
-
-Now that we have a clear picture of the problem, lets build up to the Gumbel Softmax and find out how it overcomes the impediment of non-differentiability.
-
-## Gumbel Softmax
-
-As mentioned in the previous section, we need a differentiable solution for argmax-styled determinism and stochastic nature of random selection to maintain the exploration & exploitation.
-
-We'll now discuss the proposed two-fold solution:
-
-### Softmax with temperature
-
-The *softmax with temperature* modifies the output probabilities of a categorical distribution by scaling the logits $z$ with a temperature parameter $\tau$:
+A **categorical distribution** is a list of probabilities over a fixed set of options, one number per option, adding up to 1:
 
 $$
-\text{softmax}(z_i, \tau) = \frac{e^{z_i/\tau}}{\sum_{j=1}^{n} e^{z_j/\tau}}
+p = [p_1, p_2, \dots, p_n], \qquad \sum_{i=1}^{n} p_i = 1
 $$
 
--   ***High Temperature (***$\tau \to \infty$***)***: Makes probabilities more uniform
+We'll use one running example: three categories A, B and C with
 
--   ***Low Temperature (***$\tau \to 0$***)***: Sharpens the probability, approximation of one-hot vector
+$$
+p = [0.6,\ 0.3,\ 0.1]
+$$
 
-```{ojs}
+A network doesn't usually output $p$ directly. It outputs **logits** $z$: raw, unbounded scores, one per category. A **softmax** turns them into probabilities, $p_i = e^{z_i} / \sum_j e^{z_j}$. Going the other way, $z_i = \log p_i$ (plus any constant, which softmax ignores). So "logits" and "log-probabilities" are interchangeable for us.
 
-function softmax(logits, temp){
-  let sum=0
-  for (let index = 0; index < logits.length; index++) {
-    sum+= Math.exp((logits[index] + 1e-8)/temp)
-  }
-  let probs = logits.map(x=> Math.exp((x + 1e-8)/temp)/sum)
-  return probs
-}
-prob = Array.from({length: 5}, ()=>Math.random()*10)
-viewof gain = Inputs.range([0.1, 50], {value: 20, step: 0.1, label: "Temperature (τ)   "})
-Plot.barY(softmax(prob, gain)
- ).plot({x: {label: "Categories"}, y: {label: "Probs"}})
+There are two common ways to turn $p$ into a single choice:
+
+-   **argmax:** always pick the most likely category. Here that's A, every time. This is what a classifier does at inference.
+-   **Sampling:** pick category $i$ with probability $p_i$. A about 60% of the time, B 30%, C 10%. This is what `np.random.choice` does, and what an RL agent does when it explores.
+
+A simple way to sample: lay the probabilities end to end along the interval from 0 to 1, draw a uniform random number $u$, and pick whichever segment it lands in.
+
+```{=html}
+<figure class="blog-fig column-body-outset" data-fig="sampling" aria-label="Sampling from p = [0.6, 0.3, 0.1] with a uniform random number, and a histogram converging to p">
+<figcaption><b>Figure 1 · Sampling.</b> Each round, a uniform number <i>u</i> (gold) drops onto the interval split by <i>p</i>, and the segment it lands in is the sample. The histogram below counts the picks: after a few samples it's noisy, after a thousand it matches the dashed targets. Switch to <i>argmax</i> to see the alternative: A every time.</figcaption>
+</figure>
 ```
 
-This approach provides a differentiable alternative to argmax-styled one-hot approximation (at low temperatures). However, it still fails to introduce **stochasticity** at low temperatures. It always outputs a deterministic distribution for a given set of logits $z$ .
+::: callout-tip
+## Think of it as
 
-### Gumbel Noise
+A playlist where each song has a weight. **Shuffle** plays songs in proportion to their weights: that's sampling. **"Play my favourite"** plays the top-weighted song every time: that's argmax.
+:::
 
-Stochasticity is needed to encourage exploration and mimic random sampling from given categorical distribution. We can inject this stochasticity through perturbing the logits by adding a noise $\epsilon$ value before applying softmax.
+## Why a choice blocks backpropagation
 
-Gumbel noise emerges as the perfect candidate for this because of following properties:
+Backpropagation needs every step of the computation to answer one question: *if my input changes a tiny bit, how much does my output change?* That's the derivative, the slope. Chain enough slopes together and you get the gradient of the loss with respect to every parameter.
 
--   It is mathematically aligned with categorical distributions and enables differentiable approximation of discrete sampling via the Gumbel-Softmax trick.
+So let's ask that question of argmax. Write its output as a **one-hot** vector: all zeros, with a single 1 at the chosen category. Now slowly slide the logit $z_A$ and watch what happens to "is A chosen?".
 
--   It introduces randomness in a way that respects the structure of categorical distributions while enabling gradient-based optimization.
+```{=html}
+<figure class="blog-fig column-body-outset" data-fig="argmax-step" aria-label="As z_A slides, the one-hot output of argmax jumps from 0 to 1, with zero slope everywhere else">
+<figcaption><b>Figure 2 · argmax has no useful slope.</b> The logit for A (blue) rises and falls. While A isn't the largest, the output for A stays 0; the moment it overtakes B, it jumps to 1, then stays 1. The gold tangent line is flat everywhere except at the jump, where the slope doesn't exist.</figcaption>
+</figure>
+```
 
-Gumble noise $\epsilon$ is sampled from the standard [***Gumbel distribution***](https://en.wikipedia.org/wiki/Gumbel_distribution). We can draw such noise samples by first computing $u \sim Uniform(0, 1)$ and then computing $\epsilon = -\log(-\log(u))$ .
+The output is **piecewise constant**: flat, then a jump, then flat. Its slope is 0 almost everywhere, and undefined at the jump. A gradient of 0 tells the optimiser "nothing you change here matters", which is false, so learning stalls.
 
-Now putting it all together we have the Gumble Softmax Equation as:
+Sampling has the same problem in a different form. `np.random.choice(3, p=p)` returns an integer, and the randomness comes from inside the function. There is no smooth path from $p$ to the output for a gradient to follow: nudge $p_A$ from 0.60 to 0.61 and the returned index is either unchanged or jumps to a different category.
+
+### The two classic workarounds
+
+**REINFORCE** (also called the score-function estimator) sidesteps the problem: it never differentiates through the sample, and instead uses $\nabla_p \log p_i$ of the sampled category, weighted by how good the outcome was. It's unbiased, but its gradient estimates are **noisy** (high variance), so training needs many samples or careful tricks.
+
+**The reparameterization trick** works when the distribution is continuous. To sample from a Gaussian, write $x = \mu + \sigma \cdot \varepsilon$ with $\varepsilon \sim \mathcal{N}(0, 1)$. The randomness now lives in $\varepsilon$, an *input* that doesn't depend on the parameters, and $x$ is a smooth function of $\mu$ and $\sigma$. Gradients flow straight through. This is how VAEs train.
+
+Gumbel-Softmax is the reparameterization trick for **categorical** variables. It needs two ingredients: a smooth stand-in for argmax, and a way to move the randomness into an input.
+
+::: callout-tip
+## Think of it as
+
+Nudge a song's weight from 0.60 to 0.61 and "play my favourite" still plays the same song. Turning the knob a little gives you no feedback about which way to turn it.
+:::
+
+## Ingredient 1: soften the argmax with temperature
+
+The **softmax with temperature** divides the logits by a number $\tau > 0$ before the softmax:
 
 $$
-GumbelSoftmax(z_i, \tau) =  \frac{e^{(z_i + \epsilon)/\tau}}{\sum_{j=1}^{n} e^{(z_j + \epsilon)/\tau}} 
+\text{softmax}(z / \tau)_i = \frac{e^{z_i/\tau}}{\sum_{j} e^{z_j/\tau}}
 $$
 
--   **Stochasticity**: $\epsilon$ injects randomness, enabling exploration.
+-   **Low temperature** ($\tau \to 0$): differences between logits get magnified, and the output approaches the one-hot argmax.
+-   **$\tau = 1$:** the ordinary softmax.
+-   **High temperature** ($\tau \to \infty$): differences shrink, and the output approaches uniform, $[\tfrac13, \tfrac13, \tfrac13]$.
 
--   **Differentiability**: The softmax function ensures the operation is differentiable.
+Crucially, at every $\tau$ the output is a **smooth** function of the logits. Here's the same experiment as Figure 2, with argmax swapped for softmax.
 
--   **Control**: $\tau$ adjusts the trade-off between exploration and exploitation.
+```{=html}
+<figure class="blog-fig column-body-outset" data-fig="temperature" aria-label="Softmax with temperature: as tau changes, the curve of the output for A goes from a sharp step to a flat line, always smooth">
+<figcaption><b>Figure 3 · Softmax with temperature.</b> Same sliding logit as Figure 2. The blue curve is the softmax output for A; the dashed line is the argmax step from before. Drag τ down toward 0.1 and the curve hugs the step, but it stays smooth, so the gold slope is never exactly 0. Drag it up toward 10 and the outputs flatten toward one third each.</figcaption>
+</figure>
+```
+
+That fixes the gradient, but it loses something: softmax is **deterministic**. For the same logits it always returns the same vector. At low temperature it always returns (nearly) the one-hot for A, which is argmax again, not a sample. We need randomness that respects $p$.
+
+::: callout-tip
+## Think of it as
+
+Instead of playing one song, a DJ **crossfades** all of them, each at a volume set by its weight. Temperature is how sharp the crossfade is: at low $\tau$ you hear almost only the top song, at high $\tau$ an even mix. Nudge a weight and the mix changes a little: that's a slope you can learn from.
+:::
+
+## Ingredient 2: the Gumbel-Max trick
+
+Here's a remarkable fact. Take the log-probabilities, add a little random noise to each one independently, and take the argmax. If the noise comes from the right distribution, the result is an **exact sample** from $p$:
+
+$$
+\arg\max_i \big(\log p_i + g_i\big) \;\sim\; \text{Categorical}(p), \qquad g_1, \dots, g_n \overset{\text{iid}}{\sim} \text{Gumbel}(0, 1)
+$$
+
+The **Gumbel distribution** describes the *maximum* of many independent random values (it's an "extreme value" distribution), which is why it fits so neatly with an argmax. You can draw a standard Gumbel sample from a uniform one:
+
+$$
+u \sim \text{Uniform}(0, 1), \qquad g = -\log\big(-\log u\big)
+$$
+
+Watch it work:
+
+```{=html}
+<figure class="blog-fig column-body-outset" data-fig="gumbel-max" aria-label="Gumbel-Max trick: Gumbel noise added to each log-probability, the argmax wins, and the histogram converges to p">
+<div class="fig-info">
+<h4>Reading this figure, step by step</h4>
+<ol>
+<li><b>The dots</b> are the log-probabilities: log 0.6 = −0.51 for A, log 0.3 = −1.20 for B, log 0.1 = −2.30 for C. A starts highest.</li>
+<li><b>The red arrows</b> are Gumbel noise, one fresh draw per category. Each arrow moves its dot up or down to that category's <i>score</i>.</li>
+<li><b>The gold dot</b> is the highest score. That category is this round's sample.</li>
+<li><b>The histogram</b> counts the winners. A wins most often, because it starts highest, but B and C win whenever their noise is large enough. After a couple of thousand rounds the counts sit on 60% / 30% / 10%: exactly p.</li>
+<li><b>Switch to "shared"</b> and every category gets the <i>same</i> noise. Adding the same number to every score never changes which is largest, so A wins every time. Each category needs its own noise.</li>
+</ol>
+</div>
+<figcaption><b>Figure 4 · The Gumbel-Max trick.</b> Each round, every category's log-probability (dot) gets its own Gumbel noise (red arrow), and the highest score (gold) is the sample. The histogram converges to p. Try the <i>shared</i> noise option to see why the noise must be independent per category.</figcaption>
+</figure>
+```
+
+This is the step that moves the randomness into an input. All the randomness is in $g$, drawn independently of the network's parameters; the choice itself is a deterministic function, argmax, of $\log p + g$.
+
+::: callout-note
+## Why it works (for the curious)
+
+Let $G_i = \log p_i + g_i$. A standard Gumbel has CDF $F(x) = e^{-e^{-x}}$, so $G_i$ has CDF $F_i(x) = \exp(-p_i e^{-x})$ and density $f_i(x) = p_i e^{-x} \exp(-p_i e^{-x})$. Category $k$ wins when $G_k$ beats every other score:
+
+$$
+P(\text{k wins}) = \int f_k(x) \prod_{j \ne k} F_j(x)\, dx
+= \int p_k e^{-x} \exp\!\Big(-e^{-x} \sum_j p_j\Big) dx
+= p_k \int e^{-x} e^{-e^{-x}} dx = p_k
+$$
+
+using $\sum_j p_j = 1$, and the last integral is 1 because $e^{-x} e^{-e^{-x}}$ is the Gumbel density itself.
+:::
+
+::: callout-tip
+## Think of it as
+
+Before each song, every track gets a random **mood bonus** added to its weight (on a log scale), and the player plays whichever ends up on top. With Gumbel-shaped bonuses, each song plays exactly as often as its weight says. Give every track the same bonus and nothing changes: the favourite always wins.
+:::
+
+## Putting them together: Gumbel-Softmax
+
+Now combine the two ingredients. Gumbel-Max is a perfect sampler with an argmax inside; Ingredient 1 is a smooth stand-in for argmax. Swap one for the other:
+
+$$
+y_i = \frac{\exp\big((\log p_i + g_i)/\tau\big)}{\sum_{j} \exp\big((\log p_j + g_j)/\tau\big)}, \qquad g_i \overset{\text{iid}}{\sim} \text{Gumbel}(0, 1)
+$$
+
+That's **Gumbel-Softmax** (also published, at the same time, as the **Concrete** distribution). The output $y$ is a **soft sample**: a probability vector that is random, because of $g$, and close to one-hot, when $\tau$ is small. And for a fixed draw of $g$, $y$ is a smooth function of $\log p$, so gradients flow back into whatever produced $p$.
+
+```{=html}
+<figure class="blog-fig column-body-outset" data-fig="gumbel-softmax" aria-label="Gumbel-Softmax: noisy scores, the soft sample y at temperature tau, and the hard one-hot sample, with a strip of recent soft samples">
+<figcaption><b>Figure 5 · Gumbel-Softmax.</b> Every few seconds, fresh Gumbel noise gives new scores (1). The soft sample y (2) is their softmax at temperature τ; the hard sample (3) is their argmax. The strip below shows recent soft samples. Drag τ down to 0.1 and nearly every column is a single colour, in the right proportions; drag it up to 5 and every column is a blend.</figcaption>
+</figure>
+```
+
+## Choosing the temperature
+
+Temperature trades **bias** against **variance**:
+
+| | Low τ (e.g. 0.1) | High τ (e.g. 5) |
+|---|---|---|
+| Samples $y$ | nearly one-hot, close to real samples | soft blends, far from real samples |
+| Bias of the gradient | small | large |
+| Variance of the gradient | large: the curve is nearly a step, so slopes are huge near ties and tiny elsewhere | small: the curve is gentle everywhere |
+
+A common recipe is to **anneal**: start around $\tau = 1$, where training is stable, and lower it gradually toward 0.5 or below, so the samples become nearly discrete by the end.
+
+## The straight-through trick
+
+Sometimes the downstream computation genuinely needs a discrete choice, for example to look up exactly one codebook vector. The **straight-through** Gumbel-Softmax uses the hard sample in the forward pass and the soft sample's gradient in the backward pass:
+
+$$
+y_{\text{hard}} = \text{one\_hot}\big(\arg\max_i y_i\big), \qquad
+y_{\text{st}} = y_{\text{hard}} - \text{stopgrad}(y) + y
+$$
+
+In the forward pass, $-\text{stopgrad}(y) + y$ cancels to zero, so the value is exactly $y_{\text{hard}}$. In the backward pass, $\text{stopgrad}$ blocks one copy of $y$ and $y_{\text{hard}}$ has no gradient, so the gradient is the gradient of $y$. The gradient is now slightly biased, since it belongs to a different value than the one used, but it works well in practice.
+
+::: callout-tip
+## Think of it as
+
+Play only the top song after the mood bonus, but **learn as if** the DJ had played the crossfade.
+:::
+
+## In code
+
+From scratch, in PyTorch:
+
+``` python
+import torch
+import torch.nn.functional as F
+
+def gumbel_softmax(logits, tau=1.0, hard=False):
+    u = torch.rand_like(logits).clamp(1e-10, 1 - 1e-10)
+    g = -torch.log(-torch.log(u))             # one Gumbel(0, 1) per category
+    y = F.softmax((logits + g) / tau, dim=-1)  # soft sample
+    if hard:                                   # straight-through
+        y_hard = F.one_hot(y.argmax(dim=-1), y.shape[-1]).to(y.dtype)
+        y = y_hard - y.detach() + y
+    return y
+```
+
+`logits` can be unnormalised scores or log-probabilities: softmax ignores a shared constant. PyTorch also ships this as [`torch.nn.functional.gumbel_softmax(logits, tau, hard)`](https://pytorch.org/docs/stable/generated/torch.nn.functional.gumbel_softmax.html).
+
+## Cheat sheet
+
+Three ideas that are easy to mix up, and the terms they rely on.
+
+::: post-cheat
+::: sw
+#### Ideas
+
+Gumbel-Max trick
+:   $\arg\max_i (\log p_i + g_i)$ with iid Gumbel noise is an exact sample from $p$. Not differentiable.
+
+Gumbel-Softmax
+:   Replace that argmax with $\text{softmax}(\cdot/\tau)$. Random, nearly one-hot at low τ, differentiable.
+
+Straight-through
+:   Hard one-hot forward, soft gradient backward.
+:::
+
+::: hw
+#### Terms
+
+Logits
+:   Raw scores a network outputs; softmax turns them into probabilities.
+
+One-hot
+:   All zeros except a single 1 at the chosen category.
+
+Temperature τ
+:   Divides the logits: low τ is sharp, high τ is flat.
+
+Reparameterization
+:   Move the randomness into an input, so the output is a smooth function of the parameters.
+:::
+:::
+
+::: post-tldr
+**The ideas to remember**
+
+1.  argmax and sampling output a discrete choice, and a discrete choice has zero or undefined slope, so backpropagation stops there.
+2.  Softmax with temperature is a smooth stand-in for argmax: low τ approaches one-hot, high τ approaches uniform.
+3.  Gumbel-Max: adding independent Gumbel noise to log-probabilities and taking the argmax gives an exact sample.
+4.  Gumbel-Softmax = Gumbel-Max with the argmax replaced by a softmax at temperature τ: random, nearly discrete, and differentiable.
+5.  Lower τ means less bias but noisier gradients; anneal it. Use straight-through when the forward pass must be truly discrete.
+:::
+
+## Back to where we started
+
+The discrete VAE picking a codebook entry, the agent picking an action, the model picking a word: each one used to be a wall that gradients couldn't cross. Now each choice is $\text{softmax}\big((\log p + g)/\tau\big)$: the randomness lives in $g$, the choice is smooth in $p$, and the network can learn which way to turn every knob. The DALL·E paper used exactly this relaxation, annealing τ toward a small value, to train the discrete VAE that turns images into tokens.
+
+## Further reading
+
+-   [Jang, Gu & Poole (2016), *Categorical Reparameterization with Gumbel-Softmax*](https://arxiv.org/abs/1611.01144): the paper that named it, with the straight-through variant.
+-   [Maddison, Mnih & Teh (2016), *The Concrete Distribution*](https://arxiv.org/abs/1611.00712): the same idea, published at the same time, with a careful look at its density.
+-   [Eric Jang, *Tutorial: Categorical Variational Autoencoders using Gumbel-Softmax*](https://blog.evjang.com/2016/11/tutorial-categorical-variational.html): a hands-on walkthrough with code.
+-   [Ramesh et al. (2021), *Zero-Shot Text-to-Image Generation*](https://arxiv.org/abs/2102.12092): the DALL·E paper, a large-scale use of the Gumbel-Softmax relaxation.
+
+*The figures are drawn live in your browser, with a fixed random seed so each animation replays the same way. Figures 1 and 4 speed up after the first few samples so the histograms have time to settle.*
+
+```{=html}
+<script src="../../assets/blog-figs.js"></script>
+<script src="figs.js"></script>
+```
