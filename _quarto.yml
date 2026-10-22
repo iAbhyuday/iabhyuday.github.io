@@ -5,13 +5,38 @@ project:
 
 website:
   title: "iabhyuday"
+  site-url: https://iabhyuday.github.io
+  description: "Visual, first-principles explanations of how GPUs and deep learning actually work, by Abhyuday Tripathi."
+  favicon: favicon.svg
+  open-graph: true
+  twitter-card:
+    creator: "@abhyu97"
   navbar:
     right:
-      - about.qmd
+      - text: About
+        href: about.qmd
       - icon: github
-        href: https://github.com/
-      - icon: twitter
-        href: https://twitter.com
+        href: https://github.com/iAbhyuday
+        aria-label: GitHub
+      - icon: linkedin
+        href: https://www.linkedin.com/in/iabhyuday
+        aria-label: LinkedIn
+      - icon: twitter-x
+        href: https://x.com/abhyu97
+        aria-label: X (Twitter)
+      - icon: rss
+        href: index.xml
+        aria-label: RSS feed
+  page-footer:
+    left: "© 2026 Abhyuday Tripathi"
+    right:
+      - text: "Book a 1:1 on Topmate"
+        href: https://topmate.io/abhyuday_tripathi
+      - text: "RSS"
+        href: index.xml
+      - text: "Built with Quarto"
+        href: https://quarto.org
+
 format:
   html:
     theme:
@@ -22,6 +47,3 @@ format:
     include-after-body: toc-rail.html
     grid:
       body-width: 704px
-
-
-

@@ -1,13 +1,13 @@
 ---
 title: "Gumbel Softmax: Differentiable Sampling from Discrete Distributions"
 date: "2024-12-23"
+description: "Why sampling from a categorical distribution breaks backpropagation, and how softmax with temperature plus Gumbel noise makes it differentiable."
 author: "Abhyuday"
+image: thumbnail.png
 execute:
   echo: false
-categories: [code]
+categories: [deep-learning, probability, code]
 ---
-
-------------------------------------------------------------------------
 
 Discrete sampling plays a crucial role in many machine learning tasks, such as classification, reinforcement learning, and generative modeling. Whether you're predicting the next action for a reinforcement learning agent or selecting vectors from a codebook in a VQ-VAE, the process often involves choosing one value from a predefined set of categories based on a probability distribution.
 

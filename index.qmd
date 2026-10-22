@@ -1,5 +1,6 @@
 ---
 title: "Blog"
+description: "Visual, first-principles explanations of how GPUs and deep learning actually work. Every idea built up step by step, with animations you can play with."
 listing:
   contents: posts
   sort: "date desc"
@@ -7,9 +8,8 @@ listing:
   categories: false
   sort-ui: false
   filter-ui: false
+  feed: true
   fields: ["categories", "author", "date", "description", "title", "image"]
 page-layout: full
 title-block-banner: false
 ---
-
-

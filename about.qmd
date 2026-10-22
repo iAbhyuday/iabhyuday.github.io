@@ -1,19 +1,38 @@
 ---
-title: "About"
+title: "Abhyuday Tripathi"
+subtitle: "Software Engineer at Google · Bengaluru"
 image: profile.jpg
 about:
-  template: jolla
+  template: trestles
+  image-shape: round
+  image-width: 14em
   links:
-    - icon: twitter
-      text: Twitter
-      href: https://twitter.com
+    - icon: github
+      text: GitHub
+      href: https://github.com/iAbhyuday
     - icon: linkedin
       text: LinkedIn
-      href: https://linkedin.com
-    - icon: github
-      text: Github
-      href: https://github.com
-
+      href: https://www.linkedin.com/in/iabhyuday
+    - icon: twitter-x
+      text: X
+      href: https://x.com/abhyu97
+    - icon: calendar-check
+      text: Topmate
+      href: https://topmate.io/abhyuday_tripathi
 ---
 
-About this blog
+Hi, I'm Abhyuday. I'm a software engineer at Google in Bengaluru.
+
+Before Google, I spent four and a half years at Siemens as a Lead AI Research Engineer, working on reinforcement learning, computer vision and the software that turns research into products.
+
+## What I write about
+
+This blog is where I take a topic I use every day and work out how it *really* works, from first principles: how a GPU runs your code, why a trick like Gumbel-Softmax makes sampling differentiable, where the time actually goes when a model trains or serves. Every post builds the idea up step by step, with animations you can pause and play with, so the intuition sticks.
+
+## Outside work
+
+I build DIY projects, from small AI models to electronics and mechatronics, and I'm happiest when an idea goes from a sketch to something that runs.
+
+## Get in touch
+
+If you'd like to talk about GPUs, deep learning, ML careers or a post here, [book a 1:1 on Topmate](https://topmate.io/abhyuday_tripathi), or find me on [LinkedIn](https://www.linkedin.com/in/iabhyuday) and [X](https://x.com/abhyu97).
