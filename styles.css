@@ -98,3 +98,14 @@ main.content table th, main.content table td{line-height:1.5em;padding-top:6px;p
 .quarto-listing .listing-date, .quarto-listing .listing-author, .quarto-listing .listing-categories, .quarto-listing .listing-description{font-family:var(--d-sans)}
 .quarto-listing .listing-description{font-size:1rem}
 main.content code, pre code{font-family:"Source Code Pro", SFMono-Regular, Menlo, Consolas, monospace}
+
+/* footer */
+.nav-footer{font-family:var(--d-sans);font-size:.8rem;color:var(--d-muted);border-top:1px solid var(--d-rule);background:transparent}
+.nav-footer a{color:var(--d-muted)}
+.nav-footer a:hover{color:var(--d-link-h, var(--d-link))}
+.nav-footer .nav-footer-right .footer-items{gap:1.1rem}
+
+/* about page */
+.quarto-about-trestles .about-entity .about-link{font-family:var(--d-sans);font-size:.85rem;border-color:var(--d-rule2);color:var(--d-ink)}
+.quarto-about-trestles .about-entity .about-link:hover{color:var(--d-link);border-color:var(--d-link)}
+.quarto-about-trestles .about-contents h2{margin-top:2rem}
