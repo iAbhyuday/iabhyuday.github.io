@@ -6,7 +6,7 @@ project:
 website:
   title: "iabhyuday"
   site-url: https://iabhyuday.github.io
-  description: "Visual, first-principles explanations of how GPUs and deep learning actually work, by Abhyuday Tripathi."
+  description: "Hard ideas, built up from first principles, one step at a time. By Abhyuday Tripathi."
   favicon: favicon.svg
   open-graph: true
   twitter-card:
