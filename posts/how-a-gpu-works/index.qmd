@@ -245,7 +245,27 @@ Here's the difference in action: both sides compute the same 16×16 output tile 
 
 ```{=html}
 <figure class="gpu-fig column-body-outset" data-fig="cores" aria-label="Race between 32 CUDA cores and one Tensor Core computing the same tile">
-<figcaption><b>Figure 5 · The race.</b> Each square is one output number, and each takes 16 FMAs (K = 16). On the left, each of the 32 lanes owns one square and adds one product per clock, so a band of 32 squares fills together over 16 clocks; 8 rounds make 128 clocks. One Tensor Core in the same sub-partition does 512 FP16 FMAs per clock and needs 8. Per SM, that's 128 vs 2,048 multiply-adds per clock: 16× more.</figcaption>
+<div class="fig-info">
+<h4>Reading this figure, step by step</h4>
+<ol>
+<li><b>The job.</b> Both sides compute the same thing: C = A × B, where A, B and C are 16 × 16 matrices. C has 256 numbers. <b>Each small square is one number of C.</b></li>
+<li><b>One square takes 16 FMAs.</b> One number of C is a row of A times a column of B, added up:
+<pre>C[0][0] = A[0][0]·B[0][0] + A[0][1]·B[1][0] + … + A[0][15]·B[15][0]</pre>
+That's 16 multiply-and-add steps (FMAs). A tiny version with rows of 4: row [1, 2, 3, 4] and column [5, 6, 7, 8] give total = 0 → 5 → 17 → 38 → <b>70</b>, one FMA per arrow.</li>
+<li><b>Total work.</b> 256 squares × 16 FMAs = <b>4,096 FMAs</b>, the same on both sides. Only the speed differs.</li>
+<li><b>Left side: 32 CUDA cores.</b> Each core (lane) does <b>one FMA per clock</b>, and each lane owns one square. Lanes 0–15 take the first row of the band, lanes 16–31 the second. Every clock, every lane adds one more product to its own square, so the whole band fills by 1/16. After 16 clocks, 32 squares are finished and the lanes move down to the next two rows. 256 ÷ 32 = 8 rounds, × 16 clocks = <b>128 clocks</b>.</li>
+<li><b>Right side: one Tensor Core.</b> It doesn't work one product at a time. It multiplies whole blocks of the matrices, <b>512 FMAs per clock</b>: 32 squares' worth. 4,096 ÷ 512 = <b>8 clocks</b>.</li>
+</ol>
+<table>
+<thead><tr><th></th><th>Work</th><th>FMAs per clock</th><th>Clocks</th></tr></thead>
+<tbody>
+<tr><td>32 CUDA cores</td><td>4,096 FMAs</td><td>32</td><td>128</td></tr>
+<tr><td>1 Tensor Core</td><td>4,096 FMAs</td><td>512</td><td>8</td></tr>
+</tbody>
+</table>
+<p>Same job, 16× faster. An SM has four sub-partitions, each with 32 CUDA cores and one Tensor Core, so per SM it's 128 vs 2,048 FMAs per clock: the bars at the bottom of the figure.</p>
+</div>
+<figcaption><b>Figure 5 · The race.</b> The same 16 × 16 tile, computed two ways: 32 CUDA cores need 128 clocks, one Tensor Core needs 8. Use <i>Explain step by step</i> under the figure for how to read it.</figcaption>
 </figure>
 ```
 

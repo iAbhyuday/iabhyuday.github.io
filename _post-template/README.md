@@ -55,6 +55,10 @@ BlogFigs.register('my-fig', {
 });
 ```
 
+**Step-by-step explainer (optional).** Put a `<div class="fig-info">…</div>` inside the figure,
+before the `<figcaption>`. It starts hidden, and an *ⓘ Explain step by step* button appears in
+the figure's control bar to open it. Use plain HTML inside (`<h4>`, `<ol>`, `<pre>`, `<table>`).
+
 Every figure automatically gets play/pause, restart, 0.5×/1×/2× speed, a full-screen view
 on phones (turned sideways), pausing while off-screen, reduced-motion support, and colours
 that follow the light/dark toggle.
