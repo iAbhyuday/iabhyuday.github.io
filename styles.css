@@ -129,3 +129,12 @@ body.quarto-light .quarto-color-scheme-toggle{--theme-icon:url('data:image/svg+x
   #quarto-header .navbar-collapse{order:2}
   #quarto-header #quarto-search{order:3}
 }
+
+/* logo: a ∇ (the gradient, direction of steepest rise; abhyudaya = rise) + Abhyuday.
+   ∇ is gold in dark mode, sage in light mode. */
+#quarto-header .navbar-title{font-family:var(--d-serif);font-weight:600;letter-spacing:.005em;font-size:1.3rem;color:var(--d-ink);display:inline-flex;align-items:center;gap:.5rem}
+#quarto-header .navbar-title::before{content:"";display:inline-block;width:1.05rem;height:1.05rem;background-color:var(--logo-nabla);
+  -webkit-mask:url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="11 14 42 38"><path fill-rule="evenodd" d="M11 14H53L32 52Z M22.5 18.6H45.4L33.3 40.6Z"/></svg>') center/contain no-repeat;
+  mask:url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="11 14 42 38"><path fill-rule="evenodd" d="M11 14H53L32 52Z M22.5 18.6H45.4L33.3 40.6Z"/></svg>') center/contain no-repeat}
+body.quarto-dark{--logo-nabla:#E0C27A}
+body.quarto-light{--logo-nabla:#4E8478}
