@@ -138,3 +138,26 @@ main.content .post-facts a.gsc-tile:hover, main.content .post-facts a.gsc-tile:f
 .post-facts .gsc-tile small{font-size:.76rem;line-height:1.35;color:var(--d-muted, #888);margin-top:6px}
 .post-facts .gsc-tile small::after{content:" →"}
 @media (prefers-reduced-motion:reduce){.post-facts a.gsc-tile{transition:none}}
+
+/* ⓘ explainer panel */
+.blog-fig .gf-info{display:inline-flex;align-items:center;gap:5px;color:var(--g-ink)}
+.blog-fig .gf-info[aria-expanded="true"]{border-bottom-color:var(--g-ink)}
+.blog-fig .fig-info{font-family:var(--d-sans, sans-serif);font-size:.92rem;line-height:1.6;color:var(--g-ink);margin:8px 0 12px;padding:16px 20px;border-left:3px solid var(--g-tensor, var(--g-purple, #a891d6));background:var(--g-panel, rgba(127,127,127,.07));border-radius:0 6px 6px 0}
+.blog-fig .fig-info[hidden]{display:none}
+.blog-fig .fig-info h4{font-family:var(--d-sans, sans-serif);font-size:1rem;margin:0 0 8px;color:var(--g-ink);text-shadow:none}
+.blog-fig .fig-info ol{margin:0 0 12px;padding-left:1.3em}
+.blog-fig .fig-info li{margin:0 0 8px}
+.blog-fig .fig-info code{font-size:.85em}
+.blog-fig .fig-info pre{font-size:.8rem;margin:6px 0;padding:8px 10px;overflow-x:auto}
+.blog-fig .fig-info table{width:100%;border-collapse:collapse;margin:6px 0 4px;font-variant-numeric:tabular-nums}
+.blog-fig .fig-info th,.blog-fig .fig-info td{padding:6px 10px;border-bottom:1px solid var(--g-line);text-align:right}
+.blog-fig .fig-info th:first-child,.blog-fig .fig-info td:first-child{text-align:left}
+.blog-fig .fig-info th{font-weight:600;color:var(--g-muted)}
+.blog-fig .fig-info p:last-child{margin-bottom:0}
+.blog-fig .fig-info h4{text-transform:none;letter-spacing:normal}
+@media (max-width:600px){.blog-fig .fig-info{padding:12px 14px;font-size:.88rem}.blog-fig .fig-info ol{padding-left:1.1em}.blog-fig .fig-info table{font-size:.8rem}.blog-fig .fig-info th,.blog-fig .fig-info td{padding:5px 6px}}
+.blog-fig .fig-info{font-family:var(--d-serif, Georgia, serif);font-size:1rem;line-height:1.7}
+.blog-fig .fig-info h4{font-family:var(--d-serif, Georgia, serif);font-weight:600;font-size:18px;line-height:1.4em;color:var(--d-h-sub, var(--g-ink));text-shadow:var(--d-hshadow, none);margin:0 0 10px}
+.blog-fig .fig-info pre, .blog-fig .fig-info code{font-family:"Source Code Pro", SFMono-Regular, Menlo, Consolas, monospace}
+.blog-fig .fig-info table{font-family:var(--d-sans, sans-serif);font-size:15px}
+@media (max-width:600px){.blog-fig .fig-info{font-size:.95rem}.blog-fig .fig-info h4{font-size:17px}.blog-fig .fig-info table{font-size:13px}}

@@ -674,6 +674,21 @@ function mount(fig){
   bar.appendChild(sp);
   const firstCtl = fig.querySelector('.gf-ctl');
   fig.insertBefore(bar, firstCtl || cap);
+  // optional explainer: a <div class="fig-info" hidden> inside the figure, toggled by an ⓘ button
+  const info = fig.querySelector('.fig-info');
+  if (info) {
+    const id = 'info-' + (fig.dataset.fig || Math.random().toString(36).slice(2));
+    info.id = id; info.hidden = true;
+    const ib = el('button',{class:'gf-link gf-info',type:'button','aria-expanded':'false','aria-controls':id},
+      '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M12 11v6" stroke-linecap="round"/><circle cx="12" cy="7.6" r="1.1" fill="currentColor" stroke="none"/></svg>Explain step by step');
+    ib.addEventListener('click', () => {
+      const open = info.hidden; info.hidden = !open;
+      ib.setAttribute('aria-expanded', String(open));
+      ib.lastChild.textContent = open ? 'Hide explanation' : 'Explain step by step';
+    });
+    bar.insertBefore(ib, expand);
+    bar.after(info);
+  }
 
   applyTheme(st);
   figs.push(st);
