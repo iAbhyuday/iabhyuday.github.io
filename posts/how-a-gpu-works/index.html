@@ -84,8 +84,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting-dark-bd214ee8a11bbafa21949b7e7cbab4ab.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
 <script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../../site_libs/bootstrap/bootstrap-d1776b11deff18fc658dff9ec1e8bd1d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="../../site_libs/bootstrap/bootstrap-dark-9b0fc61af3f9dc2874153f629b3f5ae8.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../../site_libs/bootstrap/bootstrap-35efe23a430f3fbc287cc91ab3874389.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../../site_libs/bootstrap/bootstrap-dark-867004202be20c9773a02d19aeda18f9.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -770,11 +770,11 @@ That's 16 multiply-and-add steps (FMAs). A tiny version with rows of 4: row [1, 
 <section id="why-so-many-warps-hiding-memory-latency" class="level2 page-columns page-full">
 <h2 class="anchored" data-anchor-id="why-so-many-warps-hiding-memory-latency">Why so many warps? Hiding memory latency</h2>
 <p>Why would the hardware bother keeping 16 warps on a sub-partition when only one can run per cycle? Because of memory. A load from HBM takes <strong>hundreds of cycles</strong> to come back. If the scheduler had only one warp, it would sit idle for all of them.</p>
-<p>Try it below. Each warp in this model does two math instructions, then a load that stalls for 12 cycles (real HBM latency is closer to 500+, but 12 keeps it watchable).</p>
+<p>Try it below. Each warp in this model runs a tiny loop of three instructions: two <strong>FFMA</strong>s (the instruction name for one FP32 fused multiply-add, <code>d = a × b + c</code>), then a <strong>LOAD</strong> from HBM that stalls the warp for 12 cycles (real HBM latency is closer to 500+, but 12 keeps it watchable). The scheduler can issue one instruction per cycle.</p>
 <figure class="gpu-fig column-body-outset figure" data-fig="warps" aria-label="Interactive simulation of a warp scheduler hiding memory latency">
 <figcaption><b>Figure 6 · Latency hiding.</b> Each row is a warp; its 32 bars are its threads. Red cells in the issue-slot strip are wasted cycles. With 1 or 2 warps the scheduler is mostly idle. Move the slider to 5 or more and the red disappears: while one warp waits on memory, another is ready to run.</figcaption>
 </figure>
-<p>The arithmetic is simple. One warp keeps the scheduler busy for 3 cycles out of every 15 (3 instructions + 12 waiting). To fill every cycle you need about <span class="math inline">\(15 \div 3 = 5\)</span> warps. With real HBM latencies, you need many more, which is why the H100 can keep up to 64 warps per SM.</p>
+<p>The arithmetic is simple. One warp keeps the scheduler busy for 3 cycles out of every 15: 3 cycles issuing its instructions (FFMA, FFMA, LOAD), then 12 cycles waiting for the load to come back. To fill every cycle you need about <span class="math inline">\(15 \div 3 = 5\)</span> warps. With real HBM latencies, you need many more, which is why the H100 can keep up to 64 warps per SM.</p>
 <p>How many warps actually fit depends on how many registers and how much shared memory each thread uses. The fraction of the maximum you achieve is called <strong>occupancy</strong>.</p>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">
