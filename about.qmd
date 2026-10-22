@@ -26,10 +26,6 @@ Before Google, I spent four and a half years at Siemens as a Lead AI Research En
 
 I build DIY projects, from small AI models to electronics and mechatronics, and I'm happiest when an idea goes from a sketch to something that runs.
 
-## The blog
-
-I write visual, step-by-step explanations of how GPUs and deep learning work. [Browse all posts →](index.qmd)
-
 ## Get in touch
 
 If you'd like to talk about GPUs, deep learning, ML careers or a post here, [book a 1:1 on Topmate](https://topmate.io/abhyuday_tripathi), or find me on [LinkedIn](https://www.linkedin.com/in/iabhyuday) and [X](https://x.com/abhyu97).
