@@ -120,3 +120,12 @@ main.content code, pre code{font-family:"Source Code Pro", SFMono-Regular, Menlo
 .quarto-color-scheme-toggle:hover .bi::before{background-color:var(--d-h-main, var(--d-ink)); transform:rotate(25deg)}
 body.quarto-dark .quarto-color-scheme-toggle{--theme-icon:url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="black" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4.2" fill="black"/><path d="M12 2.5v2.2M12 19.3v2.2M2.5 12h2.2M19.3 12h2.2M5.3 5.3l1.55 1.55M17.15 17.15l1.55 1.55M5.3 18.7l1.55-1.55M17.15 6.85l1.55-1.55"/></svg>')}
 body.quarto-light .quarto-color-scheme-toggle{--theme-icon:url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path fill="black" d="M20.5 14.6A8.6 8.6 0 0 1 9.4 3.5a8.6 8.6 0 1 0 11.1 11.1z"/></svg>')}
+
+/* desktop: theme switch sits right beside the blog name (phones already show it there) */
+@media (min-width: 992px){
+  #quarto-header .navbar-container{display:flex;align-items:center}
+  #quarto-header .navbar-brand-container{order:0;margin-left:0 !important;margin-right:.35rem !important}
+  #quarto-header .quarto-navbar-tools{order:1;margin:0 !important;padding:0}
+  #quarto-header .navbar-collapse{order:2}
+  #quarto-header #quarto-search{order:3}
+}
