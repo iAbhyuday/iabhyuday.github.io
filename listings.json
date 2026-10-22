@@ -3,9 +3,7 @@
     "listing": "/index.html",
     "items": [
       "/posts/how-a-gpu-works/index.html",
-      "/posts/differentiable-sampling/index.html",
-      "/posts/post-with-code/index.html",
-      "/posts/welcome/index.html"
+      "/posts/differentiable-sampling/index.html"
     ]
   }
 ]

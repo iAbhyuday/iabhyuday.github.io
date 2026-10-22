@@ -1,0 +1,1053 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<rss  xmlns:atom="http://www.w3.org/2005/Atom" 
+      xmlns:media="http://search.yahoo.com/mrss/" 
+      xmlns:content="http://purl.org/rss/1.0/modules/content/" 
+      xmlns:dc="http://purl.org/dc/elements/1.1/" 
+      version="2.0">
+<channel>
+<title>iabhyuday</title>
+<link>https://iabhyuday.github.io/</link>
+<atom:link href="https://iabhyuday.github.io/index.xml" rel="self" type="application/rss+xml"/>
+<description>Visual, first-principles explanations of how GPUs and deep learning actually work. Every idea built up step by step, with animations you can play with.</description>
+<generator>quarto-1.10.19</generator>
+<lastBuildDate>Wed, 21 Oct 2026 00:00:00 GMT</lastBuildDate>
+<item>
+  <title>How a GPU Works: A Visual Tour of the H100</title>
+  <dc:creator>Abhyuday </dc:creator>
+  <link>https://iabhyuday.github.io/posts/how-a-gpu-works/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<hr>
+<p>Every time we call <code>model(x)</code> in PyTorch, billions of multiply-adds run on a GPU in a few milliseconds. Most of us treat that GPU as a black box that makes things fast. That works until it doesn’t: until a training run is mysteriously slow, an inference server can’t keep up, or someone says <em>“this kernel is memory-bound”</em> and we nod without really knowing what it means.</p>
+<p>In this blog post, we’ll open the box. We’ll use NVIDIA’s <strong>H100</strong> as our running example and build up a mental model one idea at a time. Each section answers <em>what</em> a part is, <em>why</em> it exists, and <em>how</em> it connects to the parts before it. Every figure is a small animation you can pause, restart, and in some cases play with.</p>
+<p>By the end, words like <strong>SM</strong>, <strong>warp</strong>, <strong>Tensor Core</strong> and <strong>memory-bound</strong> should feel concrete, along with the jargon around them.</p>
+<section id="cpu-vs-gpu-what-a-core-really-means" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="cpu-vs-gpu-what-a-core-really-means">CPU vs GPU: what a “core” really means</h2>
+<p>Spec sheets make the comparison look absurd: a big server CPU has around 64 cores, and an H100 has <strong>16,896 CUDA cores</strong>. Is a GPU really 250 times bigger? No.&nbsp;The two companies are counting different things, and untangling that is the best way into how a GPU works.</p>
+<section id="what-a-cpu-core-is" class="level3">
+<h3 class="anchored" data-anchor-id="what-a-cpu-core-is">What a CPU core is</h3>
+<p>A CPU core is a complete, independent processor. It fetches its own instructions, decodes them, predicts which way each branch will go, and runs them on its own execution units. Most of its silicon is <strong>not</strong> doing arithmetic. It goes to machinery that makes <em>one</em> stream of instructions run fast:</p>
+<ul>
+<li><strong>Branch prediction</strong> guesses the outcome of every <code>if</code> before it’s known, so the core never waits to find out.</li>
+<li><strong>Out-of-order execution</strong> keeps hundreds of instructions in flight and runs whichever ones are ready, so one slow instruction doesn’t stall the rest.</li>
+<li><strong>Large caches</strong> (a couple of megabytes per core, plus a big shared L3 cache) mean most memory reads come back in a few cycles.</li>
+<li><strong>A high clock</strong>, around 3–5 GHz.</li>
+</ul>
+<p>All of that serves one goal: <strong>low latency</strong>. Finish <em>this</em> task as soon as possible.</p>
+<p>Inside a modern CPU core there <em>is</em> a small amount of parallel math: <strong>SIMD</strong> units that apply one instruction to several numbers at once. With AVX-512 (Intel’s and AMD’s widest SIMD instructions), a core has two units that are each 16 FP32 numbers wide (FP32 is the standard 32-bit decimal number), so 32 <strong>lanes</strong> in total.</p>
+</section>
+<section id="what-a-cuda-core-is" class="level3 page-columns page-full">
+<h3 class="anchored" data-anchor-id="what-a-cuda-core-is">What a “CUDA core” is</h3>
+<p>A CUDA core is just <strong>one of those lanes</strong>: a unit that does one FP32 multiply-add per clock. It has no instruction fetch, no decoder, no branch predictor and no cache of its own. It can’t run anything by itself; it executes whatever its scheduler hands to all 32 lanes at once.</p>
+<p>The part of a GPU that actually compares to a CPU core is the <strong>Streaming Multiprocessor (SM)</strong>, which we’ll open up shortly. Count lanes the way NVIDIA does, and that 64-core CPU has <img src="https://latex.codecogs.com/png.latex?64%20%5Ctimes%2032%20=%202%7B,%7D048"> “cores”.</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="cpu" aria-label="Animated comparison of one CPU core and one GPU SM on a dependent chain and on independent items">
+<figcaption><b>Figure 1 · CPU core vs SM.</b> Top: where each one spends its silicon (schematic, not to scale). Gray is control, gold is cache and storage, green is math lanes. The outlined lane on each side is the same kind of thing: one "CUDA core" equals one SIMD lane. Bottom: two workloads. A chain of dependent steps runs about 13× faster on the CPU core. 2,048 independent items run about 2× faster on the SM.</figcaption>
+</figure>
+<p>Here’s how one CPU core and one SM compare side by side:</p>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 28%">
+<col style="width: 33%">
+<col style="width: 37%">
+</colgroup>
+<thead>
+<tr class="header">
+<th></th>
+<th>CPU core (modern server, typical)</th>
+<th>H100 SM</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Instruction streams</td>
+<td>1–2 threads</td>
+<td>up to 2,048 threads resident</td>
+</tr>
+<tr class="even">
+<td>FP32 lanes</td>
+<td>32 (2 × AVX-512)</td>
+<td>128</td>
+</tr>
+<tr class="odd">
+<td>Clock</td>
+<td>~3–5 GHz</td>
+<td>~1.8 GHz</td>
+</tr>
+<tr class="even">
+<td>Where the silicon goes</td>
+<td>control logic and cache</td>
+<td>math lanes and registers</td>
+</tr>
+<tr class="odd">
+<td>What it does when memory is slow</td>
+<td><strong>avoids</strong> waiting: caches, prediction, out-of-order</td>
+<td><strong>hides</strong> waiting: switches to another warp</td>
+</tr>
+<tr class="even">
+<td>How many per chip</td>
+<td>tens (e.g.&nbsp;64)</td>
+<td>132</td>
+</tr>
+</tbody>
+</table>
+<p>Two lessons come out of Figure 1.</p>
+<p><strong>A single GPU thread is slow.</strong> It runs at half the clock, has no out-of-order execution, and waits much longer for memory. For one long chain of dependent steps, where each step needs the previous answer, the CPU core wins by an order of magnitude. Branchy, sequential, latency-sensitive work belongs on the CPU: parsing, tokenisation, data-loading logic, the Python that orchestrates your training loop.</p>
+<p><strong>The GPU wins on independent work, and mostly by scale.</strong> On plain FP32 math, one SM is only about 2× one CPU core. The big gap comes from having 132 SMs, from hiding memory waits cheaply instead of avoiding them, and from dedicated matrix units called Tensor Cores. Each of those gets its own section below.</p>
+<p>Put together, an H100 does roughly 5× the FP32 throughput of a 64-core server CPU’s vector units, and roughly 80× once its Tensor Cores run on BF16, a 16-bit number format we’ll meet in the Tensor Core section.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>A CPU core is a master chef who can cook anything and never wastes a second. An SM is a kitchen line of cooks who all make the same move at the same moment. Ask for one complicated dish and the chef wins easily. Ask for 2,000 identical plates and the line wins, and an H100 has 132 such lines. We’ll keep this kitchen through the rest of the post.</p>
+</div>
+</div>
+<p>Deep learning is the 2,000-plates case. A matrix multiply is millions of independent multiply-adds, so every design decision in the rest of this post exists to keep those lanes busy.</p>
+</section>
+</section>
+<section id="the-chip-132-kitchen-lines-and-a-warehouse" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="the-chip-132-kitchen-lines-and-a-warehouse">The chip: 132 kitchen lines and a warehouse</h2>
+<p>Let’s start from the outside. An H100 is a single large piece of silicon, the <strong>GH100 die</strong>, sitting next to stacks of memory on the same package.</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="chip" aria-label="Animated diagram of the GH100 die with SMs, L2 cache and HBM stacks">
+<figcaption><b>Figure 2 · The chip.</b> Blue squares are <i>thread blocks</i> (chunks of your work). The GigaThread engine hands each one to an SM with free room, and that SM lights up green while it runs. Gold dots are data streaming from the HBM stacks into the L2 cache, which every SM shares.</figcaption>
+</figure>
+<p>Three parts matter here.</p>
+<p><strong>Streaming Multiprocessors (SMs).</strong> The SM is the basic building block: the unit that gets copied over and over. The full GH100 die has 144 SMs arranged in 8 groups called GPCs (graphics processing clusters). A die this big almost always has a few manufacturing defects, so NVIDIA switches off the faulty SMs and sells the chip with <strong>132 enabled</strong>. That’s the dashed outlines in the figure.</p>
+<p><strong>L2 cache (50 MB).</strong> A shared pantry in the middle of the chip. Every SM can read from it, and it’s much faster to reach than off-chip memory.</p>
+<p><strong>HBM3 (80 GB).</strong> High Bandwidth Memory: five stacks of DRAM, the same kind of memory chip as a PC’s RAM, sitting right next to the die. This is where your model weights, activations and KV cache (the attention data an LLM keeps while generating text) live. It’s big, but it’s off the die, so it’s the slowest tier.</p>
+<p>Put together, this is what NVIDIA prints on the H100’s spec sheet. Each number gets explained somewhere in this post; tap one to jump there.</p>
+
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>A restaurant with 132 kitchen lines (SMs), a shared pantry in the middle (L2), and a warehouse next door (HBM). The head waiter hands each order (a thread block) to any line with free space.</p>
+</div>
+</div>
+</section>
+<section id="how-your-code-gets-split-up" class="level2">
+<h2 class="anchored" data-anchor-id="how-your-code-gets-split-up">How your code gets split up</h2>
+<p>Before we look inside an SM, we need the vocabulary on the <em>software</em> side, because the hardware is designed around it.</p>
+<p>When you launch a GPU program (a <strong>kernel</strong>), you don’t write a loop over a million elements. You write the code for <em>one</em> element, and ask the GPU to run it a million times in parallel. Here’s the classic example, adding two vectors in CUDA:</p>
+<pre class="cuda"><code>__global__ void add(const float* a, const float* b, float* c, int n) {
+    int i = blockIdx.x * blockDim.x + threadIdx.x;   // which element am I?
+    if (i &lt; n) c[i] = a[i] + b[i];
+}
+
+// launch 4096 blocks of 256 threads = 1,048,576 threads
+add&lt;&lt;&lt;4096, 256&gt;&gt;&gt;(a, b, c, n);</code></pre>
+<p>This gives us a hierarchy of three software terms:</p>
+<ul>
+<li><strong>Thread:</strong> one running copy of the kernel. It has its own variables and its own <code>threadIdx</code>.</li>
+<li><strong>Thread block:</strong> a group of up to 1,024 threads. A block always runs on a single SM, so its threads can cooperate through fast shared memory.</li>
+<li><strong>Grid:</strong> all the blocks of one kernel launch.</li>
+</ul>
+<p>The GPU schedules <strong>blocks onto SMs</strong>. That’s exactly what Figure 2 showed: blue squares (blocks) flying to SMs. An SM can host several blocks at once, as long as it has room.</p>
+</section>
+<section id="inside-one-sm" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="inside-one-sm">Inside one SM</h2>
+<p>Now let’s zoom into a single SM. Everything that actually <em>computes</em> lives here.</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="sm" aria-label="Animated diagram of one SM with four sub-partitions">
+<figcaption><b>Figure 3 · One SM.</b> Each of the four sub-partitions has its own warp scheduler. Every tick, each scheduler issues one instruction. When it's a regular FP32 instruction, all 32 CUDA cores flash together (green). When it's a matrix instruction, the Tensor Core flashes (purple). Gold dots move data from shared memory into registers.</figcaption>
+</figure>
+<p>An H100 SM is split into <strong>four sub-partitions</strong> (NVIDIA’s whitepapers call them <em>processing blocks</em>; profilers call them <em>SMSPs</em>). Each sub-partition has:</p>
+<ul>
+<li>a <strong>warp scheduler</strong>, which decides what runs next,</li>
+<li>a <strong>register file</strong> of 64 KB, the fastest storage on the chip,</li>
+<li><strong>32 FP32 CUDA cores</strong>, plus 16 INT32 units (whole-number math, like loop counters and addresses) and 16 FP64 units (64-bit, double-precision decimals),</li>
+<li><strong>one Tensor Core</strong>, a dedicated matrix-multiply engine.</li>
+</ul>
+<p>All four sub-partitions share a 256 KB block of on-chip memory that acts as <strong>L1 cache</strong> and <strong>shared memory</strong> (more on the difference later), plus the <strong>TMA</strong> (Tensor Memory Accelerator), a copy engine that moves whole tiles of data from global memory into shared memory in the background.</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Per SM</th>
+<th>H100</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FP32 CUDA cores</td>
+<td>128 (32 per sub-partition)</td>
+</tr>
+<tr class="even">
+<td>Tensor Cores</td>
+<td>4 (1 per sub-partition)</td>
+</tr>
+<tr class="odd">
+<td>Register file</td>
+<td>256 KB (65,536 × 32-bit)</td>
+</tr>
+<tr class="even">
+<td>L1 + shared memory</td>
+<td>256 KB (up to 228 KB shared)</td>
+</tr>
+</tbody>
+</table>
+<p>One rule to keep in mind: <strong>cores can only compute on values in registers.</strong> Everything else, whether shared memory, L2 or HBM, must be loaded into registers first. That rule drives the whole memory story later on.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>One kitchen line split into four stations. Each station has a head cook calling out the next step (warp scheduler), ingredients within arm’s reach (registers), 32 cooks who always make the same move together (CUDA cores), and one industrial mixer for big batches (Tensor Core). One shared counter serves all four stations (shared memory).</p>
+</div>
+</div>
+</section>
+<section id="threads-warps-and-lanes-who-runs-where" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="threads-warps-and-lanes-who-runs-where">Threads, warps and lanes: who runs where</h2>
+<p>This is the part that confuses most people, including me for a long time. We have <em>software</em> things (threads, blocks) and <em>hardware</em> things (SMs, sub-partitions, cores). Two words connect them: <strong>warp</strong> and <strong>lane</strong>.</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="threads" aria-label="Animation mapping 256 threads to 8 warps, 4 sub-partitions and 32 lanes">
+<figcaption><b>Figure 4 · Threads → warps → lanes.</b> A block of 256 threads runs on one SM in three steps. Follow the gold thread: thread 52 is in warp 1 at lane 20. It always runs on lane 20 of sub-partition 1, but only on the cycles when its warp is picked.</figcaption>
+</figure>
+<p><strong>Step 1: threads become warps.</strong> Take a block of 256 threads, like the one in the figure. The SM cuts it into groups of <strong>32 consecutive threads</strong>, called <strong>warps</strong>: 8 warps in all. Threads 0–31 form warp 0, threads 32–63 form warp 1, and so on. A warp is the unit the hardware actually schedules: all 32 threads in a warp execute the <strong>same instruction at the same time</strong>, each on its own data. NVIDIA calls this SIMT, <em>single instruction, multiple threads</em>.</p>
+<p>A thread’s position inside its warp, from 0 to 31, is its <strong>lane</strong>:</p>
+<pre class="cuda"><code>int warp = threadIdx.x / 32;   // thread 52 → warp 1
+int lane = threadIdx.x % 32;   // thread 52 → lane 20</code></pre>
+<p><strong>Step 2: warps go to sub-partitions.</strong> Each warp is assigned to one of the four sub-partitions and stays there for its whole life. Its registers are allocated in that sub-partition’s register file. Our 8 warps get spread 2 per sub-partition.</p>
+<p><strong>Step 3: warps take turns on the lanes.</strong> Each sub-partition’s 32 FP32 CUDA cores are the 32 <strong>lanes</strong> of its execution unit. When the scheduler issues an FP32 instruction for a warp, the thread in lane <em>i</em> runs on lane <em>i</em>. On the next cycle, the scheduler may pick a <em>different</em> warp, and that warp uses the same 32 lanes.</p>
+<p>So <strong>a CUDA core is not “a thread’s core”</strong>. Up to 16 warps (512 threads) can live on one sub-partition, all sharing the same 32 lanes. A thread’s state isn’t stored in a core; it’s stored in the <strong>register file</strong>. That’s why switching between warps is free: nothing has to be saved or restored, the scheduler just points the lanes at a different warp’s registers.</p>
+<p>Because a warp shares one instruction, branches cost something. If threads in the same warp take different sides of an <code>if</code>, the warp runs <em>both</em> paths one after the other, with some lanes switched off each time. This is called <strong>divergence</strong>, and those idle lanes are wasted work.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Not every unit is 32 lanes wide
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>FP32 lines up perfectly: 32 threads, 32 units. Other instructions don’t. A sub-partition has 16 FP64 units, so a warp’s FP64 instruction takes <strong>two passes</strong>. Special functions like <code>sin</code>, <code>exp</code> and square root run on a few dedicated <strong>special function units</strong> (4 per sub-partition), so one warp’s instruction takes several cycles. And there’s only <strong>one</strong> Tensor Core per sub-partition, so the whole warp feeds it together, each thread holding a small piece of the matrices in its registers.</p>
+</div>
+</div>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Connect it to what you know
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>On a CPU, you can run 500 threads on an 8-core machine because the OS time-slices them. A GPU does the same thing, with two differences: it switches <strong>every clock cycle</strong> instead of every few milliseconds (because no state has to be saved), and it switches in <strong>bundles of 32 threads</strong> that always execute the same instruction.</p>
+<p>If you’ve used SIMD on a CPU, a warp instruction is like an AVX instruction that is 32 lanes wide. CUDA just lets you write the code from one lane’s point of view.</p>
+</div>
+</div>
+</section>
+<section id="cuda-cores-vs-tensor-cores-fma-vs-mma" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="cuda-cores-vs-tensor-cores-fma-vs-mma">CUDA cores vs Tensor Cores: FMA vs MMA</h2>
+<p>Now for the units that do the math. Both kinds of core do the same basic thing, <em>multiply and add to a running total</em>. The difference is how much they do at once.</p>
+<p><strong>FMA (fused multiply-add)</strong> is one instruction that computes, for single numbers,</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0Ad%20=%20a%20%5Ctimes%20b%20+%20c%0A"></p>
+<p>“Fused” means the multiply and add happen as one step with a single rounding at the end, so it’s both faster and more accurate than two separate instructions. A <strong>CUDA core</strong> does one FMA per clock. A warp’s <code>FFMA</code> instruction does 32 of them at once, one per lane. A dot product is just a chain of FMAs:</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb3" style="background: #f1f3f5;"><pre class="sourceCode c code-with-copy"><code class="sourceCode c"><span id="cb3-1"><span class="dt" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">float</span> sum <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">;</span></span>
+<span id="cb3-2"><span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">(</span><span class="dt" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">int</span> k <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">;</span> k <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&lt;</span> K<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">;</span> k<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">++)</span></span>
+<span id="cb3-3">    sum <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> a<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">[</span>k<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">]</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span> b<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">[</span>k<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">]</span> <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> sum<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">;</span>   <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">// one FMA per iteration</span></span></code></pre></div></div>
+<p><strong>MMA (matrix multiply-accumulate)</strong> is one instruction that computes, for small <strong>tiles</strong> of matrices,</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0AD%20=%20A%20%5Ctimes%20B%20+%20C%0A"></p>
+<p>A <strong>Tensor Core</strong> executes MMAs. For example, the instruction <code>mma.sync.m16n8k16</code> multiplies a 16×16 tile by a 16×8 tile: that’s <img src="https://latex.codecogs.com/png.latex?16%20%5Ctimes%208%20%5Ctimes%2016%20=%202%7B,%7D048"> FMAs from a single warp instruction. Hopper adds an even larger form, <code>wgmma</code>, issued by a <strong>warpgroup</strong> of 4 warps (one in each sub-partition), which can read its operands straight from shared memory.</p>
+<p>Here’s the difference in action: both sides compute the same 16×16 output tile with <img src="https://latex.codecogs.com/png.latex?K%20=%2016">, which is 4,096 FMAs.</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="cores" aria-label="Race between 32 CUDA cores and one Tensor Core computing the same tile">
+<div class="fig-info">
+<h4 class="anchored">Reading this figure, step by step</h4>
+<ol>
+<li><b>The job.</b> Both sides compute the same thing: C = A × B, where A, B and C are 16 × 16 matrices. C has 256 numbers. <b>Each small square is one number of C.</b></li>
+<li><b>One square takes 16 FMAs.</b> One number of C is a row of A times a column of B, added up:
+<pre>C[0][0] = A[0][0]·B[0][0] + A[0][1]·B[1][0] + … + A[0][15]·B[15][0]</pre>
+That's 16 multiply-and-add steps (FMAs). A tiny version with rows of 4: row [1, 2, 3, 4] and column [5, 6, 7, 8] give total = 0 → 5 → 17 → 38 → <b>70</b>, one FMA per arrow.</li>
+<li><b>Total work.</b> 256 squares × 16 FMAs = <b>4,096 FMAs</b>, the same on both sides. Only the speed differs.</li>
+<li><b>Left side: 32 CUDA cores.</b> Each core (lane) does <b>one FMA per clock</b>, and each lane owns one square. Lanes 0–15 take the first row of the band, lanes 16–31 the second. Every clock, every lane adds one more product to its own square, so the whole band fills by 1/16. After 16 clocks, 32 squares are finished and the lanes move down to the next two rows. 256 ÷ 32 = 8 rounds, × 16 clocks = <b>128 clocks</b>.</li>
+<li><b>Right side: one Tensor Core.</b> It doesn't work one product at a time. It multiplies whole blocks of the matrices, <b>512 FMAs per clock</b>: 32 squares' worth. 4,096 ÷ 512 = <b>8 clocks</b>.</li>
+</ol>
+
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th data-quarto-table-cell-role="th"></th>
+<th data-quarto-table-cell-role="th">Work</th>
+<th data-quarto-table-cell-role="th">FMAs per clock</th>
+<th data-quarto-table-cell-role="th">Clocks</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>32 CUDA cores</td>
+<td>4,096 FMAs</td>
+<td>32</td>
+<td>128</td>
+</tr>
+<tr class="even">
+<td>1 Tensor Core</td>
+<td>4,096 FMAs</td>
+<td>512</td>
+<td>8</td>
+</tr>
+</tbody>
+</table>
+
+<p>Same job, 16× faster. An SM has four sub-partitions, each with 32 CUDA cores and one Tensor Core, so per SM it's 128 vs 2,048 FMAs per clock: the bars at the bottom of the figure.</p>
+</div>
+<figcaption><b>Figure 5 · The race.</b> The same 16 × 16 tile, computed two ways: 32 CUDA cores need 128 clocks, one Tensor Core needs 8. Use <i>Explain step by step</i> under the figure for how to read it.</figcaption>
+</figure>
+<p>That gap is why the H100’s peak numbers look so different depending on which unit you use and which number format it works in.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Number formats
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Each format is a trade-off between precision and speed. <strong>FP64</strong> uses 64 bits per number (scientific computing). <strong>FP32</strong> uses 32 bits, the everyday default. <strong>FP16</strong> and <strong>BF16</strong> use 16 bits; BF16 keeps FP32’s range with less precision, which suits neural networks. <strong>FP8</strong> uses just 8 bits. <strong>TF32</strong> is a Tensor Core trick: FP32’s range with roughly FP16’s precision. Fewer bits per number means more numbers per clock: on the Tensor Cores, each step from TF32 to BF16 to FP8 doubles the peak.</p>
+</div>
+</div>
+<p>The peaks below are <strong>dense</strong>: with no special handling of zeros in the matrices. (NVIDIA also quotes “sparse” figures that are twice as high.)</p>
+<table class="caption-top table">
+<thead>
+<tr class="header">
+<th>Unit</th>
+<th>Format</th>
+<th style="text-align: right;">Peak TFLOPS (dense)</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>CUDA cores</td>
+<td>FP64</td>
+<td style="text-align: right;">34</td>
+</tr>
+<tr class="even">
+<td>CUDA cores</td>
+<td>FP32</td>
+<td style="text-align: right;">67</td>
+</tr>
+<tr class="odd">
+<td>Tensor Cores</td>
+<td>TF32</td>
+<td style="text-align: right;">495</td>
+</tr>
+<tr class="even">
+<td>Tensor Cores</td>
+<td>BF16 / FP16</td>
+<td style="text-align: right;">989</td>
+</tr>
+<tr class="odd">
+<td>Tensor Cores</td>
+<td>FP8</td>
+<td style="text-align: right;">1,979</td>
+</tr>
+</tbody>
+</table>
+<p>Neural networks are mostly matrix multiplies, so Tensor Cores carry nearly all the FLOPs. CUDA cores still handle everything else: activations, softmax, layer norm, indexing and any element-wise work.</p>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>Counting FLOPs
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>One FMA counts as <strong>2 FLOPs</strong> (a multiply and an add). An <img src="https://latex.codecogs.com/png.latex?M%20%5Ctimes%20N%20%5Ctimes%20K"> matrix multiply has <img src="https://latex.codecogs.com/png.latex?M%20%5Ccdot%20N%20%5Ccdot%20K"> FMAs, so it costs <img src="https://latex.codecogs.com/png.latex?2MNK"> FLOPs. Note the capitalisation: <strong>FLOPs</strong> is a <em>count</em> of operations, <strong>FLOPS</strong> is a <em>rate</em> (per second).</p>
+</div>
+</div>
+</section>
+<section id="why-so-many-warps-hiding-memory-latency" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="why-so-many-warps-hiding-memory-latency">Why so many warps? Hiding memory latency</h2>
+<p>Why would the hardware bother keeping 16 warps on a sub-partition when only one can run per cycle? Because of memory. A load from HBM takes <strong>hundreds of cycles</strong> to come back. If the scheduler had only one warp, it would sit idle for all of them.</p>
+<p>Try it below. Each warp in this model runs a tiny loop of three instructions: two <strong>FFMA</strong>s (the instruction name for one FP32 fused multiply-add, <code>d = a × b + c</code>), then a <strong>LOAD</strong> from HBM that stalls the warp for 12 cycles (real HBM latency is closer to 500+, but 12 keeps it watchable). The scheduler can issue one instruction per cycle.</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="warps" aria-label="Interactive simulation of a warp scheduler hiding memory latency">
+<figcaption><b>Figure 6 · Latency hiding.</b> Each row is a warp; its 32 bars are its threads. Red cells in the issue-slot strip are wasted cycles. With 1 or 2 warps the scheduler is mostly idle. Move the slider to 5 or more and the red disappears: while one warp waits on memory, another is ready to run.</figcaption>
+</figure>
+<p>The arithmetic is simple. One warp keeps the scheduler busy for 3 cycles out of every 15: 3 cycles issuing its instructions (FFMA, FFMA, LOAD), then 12 cycles waiting for the load to come back. To fill every cycle you need about <img src="https://latex.codecogs.com/png.latex?15%20%5Cdiv%203%20=%205"> warps. With real HBM latencies, you need many more, which is why the H100 can keep up to 64 warps per SM.</p>
+<p>How many warps actually fit depends on how many registers and how much shared memory each thread uses. The fraction of the maximum you achieve is called <strong>occupancy</strong>.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Each cook has several pots on the stove. While one simmers, stir another. With only one pot, the cook just stands there waiting.</p>
+</div>
+</div>
+<p>Those slow loads come from HBM, at the far end of a whole hierarchy of memories. That’s where we go next.</p>
+</section>
+<section id="the-memory-hierarchy" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="the-memory-hierarchy">The memory hierarchy</h2>
+<p>We now know where the math happens and why the SM juggles so many warps. The harder problem is getting data <em>to</em> the math. An H100 has four tiers of memory, and the rule is the same as in any computer: <strong>the closer to the cores, the faster, smaller and more expensive.</strong></p>
+<figure class="gpu-fig column-body-outset figure" data-fig="memory" aria-label="Animation of request latency to registers, shared memory, L2 and HBM">
+<figcaption><b>Figure 7 · How long a trip takes.</b> Four requests leave the SM at the same moment. The register read is back almost instantly, shared memory after about 30 cycles, L2 after about 260, and HBM after about 600. The dashed line is the edge of the die.</figcaption>
+</figure>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 26%">
+<col style="width: 17%">
+<col style="width: 33%">
+<col style="width: 22%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Tier</th>
+<th>Size</th>
+<th style="text-align: right;">Latency (cycles, approx.)</th>
+<th>Built from</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>Registers</td>
+<td>256 KB / SM</td>
+<td style="text-align: right;">~1</td>
+<td>SRAM, inside SM</td>
+</tr>
+<tr class="even">
+<td>Shared memory / L1</td>
+<td>256 KB / SM</td>
+<td style="text-align: right;">~30</td>
+<td>SRAM, inside SM</td>
+</tr>
+<tr class="odd">
+<td>L2 cache</td>
+<td>50 MB</td>
+<td style="text-align: right;">~260</td>
+<td>SRAM, on the die</td>
+</tr>
+<tr class="even">
+<td>HBM3</td>
+<td>80 GB</td>
+<td style="text-align: right;">~600</td>
+<td>DRAM, off the die</td>
+</tr>
+</tbody>
+</table>
+<p>Two pairs of terms are worth separating clearly.</p>
+<p><strong>SRAM vs DRAM.</strong> These are two ways of building memory. <strong>SRAM</strong> stores each bit in a small circuit of about six transistors. It’s fast and needs no refreshing, but it takes a lot of area, so you can only fit tens of megabytes on a chip. <strong>DRAM</strong> stores each bit as charge in one tiny capacitor. It’s far denser, so you get gigabytes, but it’s slower and must be refreshed constantly. <strong>HBM</strong> is DRAM stacked vertically and wired to the GPU through thousands of connections in a silicon interposer (a thin slab of silicon that both the GPU and the memory sit on), which is how it reaches 3.35 TB/s.</p>
+<p><strong>Cache vs shared memory.</strong> These live in the <em>same</em> 256 KB of SRAM in each SM. The difference is who’s in charge. A <strong>cache</strong> (L1, L2) is managed by hardware: it keeps recently used data and guesses what you’ll need. <strong>Shared memory</strong> is managed by you: your kernel explicitly copies a tile of data in, and every thread in the block can read it. Shared memory is how a block of threads <em>cooperates</em>.</p>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Registers are the ingredients in a cook’s hands. Shared memory is the station’s counter. L2 is the restaurant’s pantry. HBM is the warehouse next door: huge, but every trip costs time.</p>
+</div>
+</div>
+<p>The lesson for fast code: <strong>load each byte from HBM once, then reuse it as many times as possible from SRAM.</strong> The next two sections show why that matters so much.</p>
+</section>
+<section id="memory-bandwidth-vs-flops-the-roofline" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="memory-bandwidth-vs-flops-the-roofline">Memory bandwidth vs FLOPs: the roofline</h2>
+<p>Here’s the most important pair of numbers on the spec sheet:</p>
+<ul>
+<li><strong>Compute:</strong> 989 trillion BF16 FLOPs per second.</li>
+<li><strong>Memory bandwidth:</strong> 3.35 trillion bytes per second from HBM.</li>
+</ul>
+<p>Divide one by the other: the H100 can do about <strong>295 FLOPs in the time it takes to fetch one byte</strong>. So whether a program is fast depends on how much work it does per byte it loads. That ratio is called <strong>arithmetic intensity</strong>:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Ctext%7Bintensity%7D%20=%20%5Cfrac%7B%5Ctext%7BFLOPs%20performed%7D%7D%7B%5Ctext%7Bbytes%20moved%20from%20memory%7D%7D%0A"></p>
+<p>The speed you can actually reach is the lower of two limits:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Ctext%7Bachievable%20FLOPS%7D%20=%20%5Cmin%5Cbig(%5Cunderbrace%7B989%5C%20%5Ctext%7BTFLOPS%7D%7D_%7B%5Ctext%7Bcompute%20roof%7D%7D,%5C%20%5Cunderbrace%7B3.35%5C%20%5Ctext%7BTB/s%7D%20%5Ctimes%20%5Ctext%7Bintensity%7D%7D_%7B%5Ctext%7Bmemory%20roof%7D%7D%5Cbig)%0A"></p>
+<p>Plotted on log-log axes, this gives the <strong>roofline</strong>: a sloped line (memory limit) that meets a flat line (compute limit) at the <strong>ridge point</strong>, about 295 FLOPs per byte.</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="roofline" aria-label="Interactive roofline model for the H100">
+<figcaption><b>Figure 8 · The roofline.</b> Drag the slider or pick a preset. Left of the ridge, the program is <i>memory-bound</i>: the HBM pipe is full and the Tensor Cores wait. Right of the ridge, it's <i>compute-bound</i>: the Tensor Cores are the limit.</figcaption>
+</figure>
+<p>The presets are real workloads:</p>
+<ul>
+<li><strong>Vector add in FP32:</strong> read two 4-byte numbers, write one, do 1 FLOP. That’s 1 FLOP per 12 bytes, about 0.3 TFLOPS. A 989 TFLOPS chip running at 0.03% of its peak, and there’s nothing the kernel can do about it.</li>
+<li><strong>LLM decoding at batch size 1:</strong> <em>decoding</em> is how a language model writes its reply: one token at a time, each step feeding on the one before (see the note below). Generating one token multiplies every weight matrix by a single vector. Each 2-byte BF16 weight is loaded once and used in one FMA (2 FLOPs), so intensity is about 1 FLOP/B. That’s why token-by-token generation is memory-bound.</li>
+<li><strong>Decoding at batch size 64:</strong> serve 64 users at once, and their 64 token vectors stack into a matrix. Each weight loaded from HBM is now reused for 64 tokens, one per user, so intensity rises to about 64 FLOP/B. This is the whole reason inference servers batch requests together.</li>
+<li><strong>A big square matrix multiply:</strong> two <img src="https://latex.codecogs.com/png.latex?n%20%5Ctimes%20n"> matrices in BF16, here with side length <img src="https://latex.codecogs.com/png.latex?n%20=%208192">. It does <img src="https://latex.codecogs.com/png.latex?2n%5E3"> FLOPs (<img src="https://latex.codecogs.com/png.latex?n%5E2"> outputs, each a sum of <img src="https://latex.codecogs.com/png.latex?n"> FMAs) but moves only <img src="https://latex.codecogs.com/png.latex?6n%5E2"> bytes (three matrices of <img src="https://latex.codecogs.com/png.latex?n%5E2"> two-byte numbers). Intensity is <img src="https://latex.codecogs.com/png.latex?2n%5E3%20/%206n%5E2%20=%20n/3%20%5Capprox%202%7B,%7D731"> FLOP/B, well past the ridge. Compute-bound. FLOPs grow as <img src="https://latex.codecogs.com/png.latex?n%5E3"> but bytes only as <img src="https://latex.codecogs.com/png.latex?n%5E2">, so the bigger the matrix, the more each byte is reused.</li>
+</ul>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>How LLM decoding works, and why it’s memory-bound
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>A language model writes <strong>one token at a time</strong> (a <em>token</em> is a word or a piece of a word): to produce token 101 it runs the whole model on token 100, picks the next token, and repeats. Steps can’t run in parallel, because each needs the one before.</p>
+<p>Inside the model, the current token is a vector, for example 4,096 numbers. At every layer it’s multiplied by big weight matrices, <img src="https://latex.codecogs.com/png.latex?y%20=%20W%20x">: a matrix times a <em>vector</em>. Each weight comes from HBM (2 bytes), is used in exactly one FMA (2 FLOPs), and isn’t needed again for this token.</p>
+<p>For a 7-billion-parameter model, that means streaming 14 GB of weights for every token. At 3.35 TB/s, that takes about 4.2 ms, which caps generation near 240 tokens per second. The math itself (14 GFLOP) would take the Tensor Cores about 0.014 ms. Faster math wouldn’t help; only fewer bytes per FLOP would.</p>
+<p>Batching is that fix: with 64 users, each weight is loaded once and used 64 times. (Each user also has a <strong>KV cache</strong> to read every step, which batching doesn’t share, so real decoding is a little more memory-bound than this sketch.)</p>
+</div>
+</div>
+<div class="callout callout-style-default callout-tip callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Tip</span>Think of it as
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>Our kitchen lines are incredibly fast, but every ingredient from the warehouse comes through one narrow door. If each dish needs a lot of ingredients, the cooks spend their time waiting at the door. Hiring faster cooks won’t help; you need dishes that do more cooking per crate.</p>
+</div>
+</div>
+</section>
+<section id="putting-it-all-together-one-gemm" class="level2 page-columns page-full">
+<h2 class="anchored" data-anchor-id="putting-it-all-together-one-gemm">Putting it all together: one GEMM</h2>
+<p>Everything so far comes together in the single most important operation in deep learning, the <strong>GEMM</strong> (GEneral Matrix Multiply):</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0AC%20=%20A%20%5Ctimes%20B,%20%5Cqquad%20A%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BM%20%5Ctimes%20K%7D,%5C%20B%20%5Cin%20%5Cmathbb%7BR%7D%5E%7BK%20%5Ctimes%20N%7D%0A"></p>
+<p>Every <code>nn.Linear</code> layer is a GEMM. So are the <img src="https://latex.codecogs.com/png.latex?QK%5E%5Ctop"> and <img src="https://latex.codecogs.com/png.latex?%5Ctext%7Bscores%7D%20%5Ccdot%20V"> products in attention, and the MLP blocks of a transformer. Together, GEMMs make up the large majority of a model’s FLOPs.</p>
+<p>Let’s size a typical one: a linear layer with 4,096 inputs and outputs, applied to 2,048 tokens.</p>
+<div class="code-copy-outer-scaffold"><div class="sourceCode" id="cb4" style="background: #f1f3f5;"><pre class="sourceCode python code-with-copy"><code class="sourceCode python"><span id="cb4-1">y <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> torch.nn.Linear(<span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">4096</span>, <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">4096</span>)(x)   <span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># x: (2048, 4096) in bf16</span></span>
+<span id="cb4-2"><span class="co" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;"># underneath: Y = X @ W.T  →  M = 2048, K = 4096, N = 4096</span></span></code></pre></div></div>
+<table class="caption-top table">
+<colgroup>
+<col style="width: 16%">
+<col style="width: 43%">
+<col style="width: 39%">
+</colgroup>
+<thead>
+<tr class="header">
+<th>Quantity</th>
+<th>Formula</th>
+<th>Value</th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td>FLOPs</td>
+<td><img src="https://latex.codecogs.com/png.latex?2MNK"></td>
+<td>≈ 68.7 GFLOPs</td>
+</tr>
+<tr class="even">
+<td>Bytes</td>
+<td><img src="https://latex.codecogs.com/png.latex?2(MK%20+%20KN%20+%20MN)"></td>
+<td>≈ 67 MB</td>
+</tr>
+<tr class="odd">
+<td>Intensity</td>
+<td>FLOPs ÷ bytes</td>
+<td>≈ 1,000 FLOP/B → compute-bound</td>
+</tr>
+<tr class="even">
+<td>Ideal time</td>
+<td>FLOPs ÷ 989 TFLOPS</td>
+<td>≈ 70 µs</td>
+</tr>
+</tbody>
+</table>
+<p>But that intensity only holds if each matrix is read from HBM <strong>once</strong>. A naive kernel, where every multiply-add fetches its two inputs from memory, does 2 FLOPs per 4 bytes: just 0.5 FLOP/B, deep in memory-bound territory. The trick that closes the gap is <strong>tiling</strong>.</p>
+<figure class="gpu-fig column-body-outset figure" data-fig="matmul" aria-label="Animation of a tiled GEMM moving tiles from HBM through L2 and shared memory to Tensor Cores">
+<figcaption><b>Figure 9 · A tiled GEMM.</b> One thread block owns one output tile of C (outlined). It walks along K: each step, the TMA copies a tile of A and a tile of B from HBM (gold) into shared memory, and the Tensor Cores multiply them into registers (purple). The next tile is already loading while the current one is computed. At the end, the finished tile is written back to HBM once.</figcaption>
+</figure>
+<p>Each thread block computes one tile of <img src="https://latex.codecogs.com/png.latex?C">, say 128×128, and loops over <img src="https://latex.codecogs.com/png.latex?K"> in chunks of 64:</p>
+<ol type="1">
+<li>The <strong>TMA</strong> copies a 128×64 tile of <img src="https://latex.codecogs.com/png.latex?A"> and a 64×128 tile of <img src="https://latex.codecogs.com/png.latex?B"> from HBM, through L2, into <strong>shared memory</strong>.</li>
+<li><strong>Warps</strong> load pieces of those tiles into their <strong>registers</strong>.</li>
+<li><strong>Tensor Cores</strong> run MMA instructions, accumulating into <img src="https://latex.codecogs.com/png.latex?C"> in registers.</li>
+<li>After the last chunk, the finished <img src="https://latex.codecogs.com/png.latex?C"> tile is written back to HBM.</li>
+</ol>
+<p>Per step, the block loads <img src="https://latex.codecogs.com/png.latex?32"> KB and performs <img src="https://latex.codecogs.com/png.latex?2%20%5Ctimes%20128%20%5Ctimes%20128%20%5Ctimes%2064%20%5Capprox%202.1"> million FLOPs: <strong>64 FLOP/B</strong>, 128 times more reuse than the naive version. Neighbouring blocks often need the same tiles of <img src="https://latex.codecogs.com/png.latex?A"> and <img src="https://latex.codecogs.com/png.latex?B">, and they find them in the 50 MB L2 cache instead of HBM, which pushes the effective intensity higher still.</p>
+<p>Notice the <strong>double buffering</strong> too: while one buffer in shared memory is being computed on, the next tile is already loading into the other. It’s the same idea as warp switching in Figure 6: <strong>overlap waiting with useful work.</strong></p>
+<p>Now every concept from this post has a job. Each box below is made of the boxes inside it:</p>
+<figure class="gpu-stack figure" aria-label="How a GEMM breaks down, from one kernel launch to individual multiply-adds, and the path data takes">
+  <div class="gs-box gs-l1">
+    <div class="gs-head"><span class="gs-name">GEMM</span><span class="gs-where">one kernel launch</span></div>
+    <div class="gs-box gs-l2">
+      <div class="gs-head"><span class="gs-name">Thread blocks</span><span class="gs-where">spread across the <b>132 SMs</b></span></div>
+      <div class="gs-box gs-l3">
+        <div class="gs-head"><span class="gs-name">Warps &amp; warpgroups</span><span class="gs-where">take turns on the <b>4 sub-partitions</b>, hiding latency</span></div>
+        <div class="gs-box gs-l4">
+          <div class="gs-head"><span class="gs-name">MMA instructions</span><span class="gs-where">run on the <b>Tensor Cores</b></span></div>
+          <div class="gs-box gs-l5">
+            <div class="gs-head"><span class="gs-name">FMAs</span><span class="gs-where">thousands per MMA, each <i style="white-space:nowrap">d = a × b + c</i></span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div class="gs-path" aria-label="Data path">
+    <span class="gs-path-label">Data path</span>
+    <ol>
+      <li class="gs-mem"><span class="gs-chip">HBM</span></li>
+      <li class="gs-mem"><span class="gs-chip">L2 cache</span></li>
+      <li class="gs-mem"><span class="gs-chip">Shared memory <small>via TMA</small></span></li>
+      <li class="gs-reg"><span class="gs-chip">Registers</span></li>
+      <li class="gs-tc"><span class="gs-chip">Tensor Cores</span></li>
+    </ol>
+  </div>
+</figure>
+<p>This is what NVIDIA’s matrix-multiply libraries, cuBLAS and CUTLASS, do when you call <code>torch.matmul</code>. And <strong>FlashAttention</strong> is this same pattern applied to attention: it tiles <img src="https://latex.codecogs.com/png.latex?Q">, <img src="https://latex.codecogs.com/png.latex?K"> and <img src="https://latex.codecogs.com/png.latex?V"> through shared memory so the large <img src="https://latex.codecogs.com/png.latex?N%20%5Ctimes%20N"> attention matrix never has to be written to HBM at all.</p>
+</section>
+<section id="cheat-sheet" class="level2">
+<h2 class="anchored" data-anchor-id="cheat-sheet">Cheat sheet</h2>
+<p>Most confusion comes from mixing up the things you write in code with the things that physically exist on the chip.</p>
+<div class="gpu-cheat">
+<section id="software-what-your-code-creates" class="level4 sw">
+<h4 class="anchored" data-anchor-id="software-what-your-code-creates">Software: what your code creates</h4>
+<dl>
+<dt>Thread</dt>
+<dd>
+One running copy of your kernel, with its own variables and thread index.
+</dd>
+<dt>Warp</dt>
+<dd>
+32 consecutive threads that always execute the same instruction together.
+</dd>
+<dt>Lane</dt>
+<dd>
+A thread’s position in its warp, 0 to 31 (threadIdx.x % 32).
+</dd>
+<dt>Thread block</dt>
+<dd>
+Up to 1,024 threads that share shared memory. Runs on one SM.
+</dd>
+</dl>
+</section>
+<section id="hardware-what-is-on-the-chip" class="level4 hw">
+<h4 class="anchored" data-anchor-id="hardware-what-is-on-the-chip">Hardware: what is on the chip</h4>
+<dl>
+<dt>SM</dt>
+<dd>
+The building block, copied 132 times. Runs several blocks at once.
+</dd>
+<dt>Sub-partition</dt>
+<dd>
+A quarter of an SM: warp scheduler, registers, 32 FP32 lanes, 1 Tensor Core.
+</dd>
+<dt>CUDA core</dt>
+<dd>
+One FP32 unit. The 32 in a sub-partition are the lanes a warp’s FP32 instruction runs on.
+</dd>
+<dt>Tensor Core</dt>
+<dd>
+A matrix engine that executes MMA instructions on tiles.
+</dd>
+</dl>
+</section>
+</div>
+<div class="gpu-tldr">
+<p><strong>The five ideas to remember</strong></p>
+<ol type="1">
+<li>A GPU wins on <strong>throughput</strong>: thousands of simple lanes doing the same instruction on different data.</li>
+<li>Work is scheduled in <strong>warps</strong> of 32 threads. Many warps share the same lanes and take turns every cycle, which <strong>hides memory latency</strong>.</li>
+<li><strong>Tensor Cores</strong> do matrix tiles (MMA) instead of single numbers (FMA), which is where nearly all the FLOPs come from.</li>
+<li>Memory is a <strong>hierarchy</strong>: tiny and fast SRAM (registers, shared memory, L2) close to the cores; huge and slow DRAM (HBM) far away.</li>
+<li>Performance is set by <strong>arithmetic intensity</strong>: below about 295 FLOPs per byte you’re limited by bandwidth, above it by compute. <strong>Tiling</strong> is how we climb the roofline.</li>
+</ol>
+</div>
+</section>
+<section id="back-to-where-we-started" class="level2">
+<h2 class="anchored" data-anchor-id="back-to-where-we-started">Back to where we started</h2>
+<p>At the start, someone said <em>“this kernel is memory-bound”</em>. Now that sentence has a picture. The kernel sits left of the ridge on the roofline. Its warps spend their cycles waiting on HBM while the Tensor Cores idle. The fix is almost never a faster GPU; it’s more reuse per byte: tiling, batching or fusing operations so data stays in SRAM. That’s the same lesson FlashAttention and every fast GEMM are built on.</p>
+</section>
+<section id="further-reading" class="level2">
+<h2 class="anchored" data-anchor-id="further-reading">Further reading</h2>
+<ul>
+<li><a href="https://developer.nvidia.com/blog/nvidia-hopper-architecture-in-depth/">NVIDIA Hopper Architecture In-Depth</a>: NVIDIA’s own tour of the H100, including SM diagrams, TMA and the Tensor Core details.</li>
+<li><a href="https://docs.nvidia.com/cuda/cuda-c-programming-guide/">CUDA C++ Programming Guide</a>: the reference for threads, blocks, warps and the memory hierarchy.</li>
+<li><a href="https://horace.io/brrr_intro.html">Making Deep Learning Go Brrrr From First Principles</a> by Horace He: a great follow-up on compute-, memory- and overhead-bound workloads.</li>
+<li><a href="https://doi.org/10.1145/1498765.1498785">Roofline: An Insightful Visual Performance Model</a> by Williams, Waterman and Patterson: the original roofline paper.</li>
+<li><a href="https://arxiv.org/abs/2205.14135">FlashAttention</a> by Dao et al.: tiling and SRAM reuse applied to attention.</li>
+<li><a href="https://github.com/NVIDIA/cutlass">CUTLASS</a>: NVIDIA’s open-source templates for writing tiled GEMM kernels.</li>
+</ul>
+<p><em>Spec figures are from NVIDIA’s <a href="https://www.nvidia.com/en-us/data-center/h100/">H100 product page</a> and Hopper whitepaper, quoted dense (NVIDIA’s Tensor Core figures are listed with sparsity, which doubles them). Latencies are approximate and vary with access pattern. The animations are simplified models, slowed down and scaled so each idea is visible.</em></p>
+<script src="gpu-figs.js"></script>
+
+
+</section>
+
+ ]]></description>
+  <category>gpu</category>
+  <category>deep-learning</category>
+  <category>hardware</category>
+  <guid>https://iabhyuday.github.io/posts/how-a-gpu-works/</guid>
+  <pubDate>Wed, 21 Oct 2026 00:00:00 GMT</pubDate>
+  <media:content url="https://iabhyuday.github.io/posts/how-a-gpu-works/thumbnail.png" medium="image" type="image/png" height="96" width="144"/>
+</item>
+<item>
+  <title>Gumbel Softmax: Differentiable Sampling from Discrete Distributions</title>
+  <dc:creator>Abhyuday </dc:creator>
+  <link>https://iabhyuday.github.io/posts/differentiable-sampling/</link>
+  <description><![CDATA[ 
+
+
+
+
+
+<p>Discrete sampling plays a crucial role in many machine learning tasks, such as classification, reinforcement learning, and generative modeling. Whether you’re predicting the next action for a reinforcement learning agent or selecting vectors from a codebook in a VQ-VAE, the process often involves choosing one value from a predefined set of categories based on a probability distribution.</p>
+<p>However, during training, this sampling process encounters a major roadblock: the lack of differentiability. This makes backpropagation—essential for optimizing neural networks—impossible. Enter <strong>Gumbel-Softmax</strong>, a technique that enables differentiable sampling while retaining the key properties of discrete sampling. In this blog post, we’ll explore the problem, dissect the Gumbel-Softmax trick, and understand how it solves this challenge.</p>
+<section id="what-is-discrete-sampling" class="level2">
+<h2 class="anchored" data-anchor-id="what-is-discrete-sampling">What is Discrete Sampling</h2>
+<p>Discrete sampling refers to selecting the value of a random variable from a given discrete probability distribution <img src="https://latex.codecogs.com/png.latex?p">, defined as:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0Ap%20=%20%5Bp_1,%20p_2,%20...,%20p_n%5D%20%5Cquad%20where%20%5Cquad%20%5Csum_%7Bi=1%7D%5En%20p_i%20=%201%0A"></p>
+<p>For example, <img src="https://latex.codecogs.com/png.latex?p%20=%20%5B0.6,%200.3,%200.1%5D"> is a categorical distribution over three classes,</p>
+<ul>
+<li><p>We can select first class with probability: <img src="https://latex.codecogs.com/png.latex?P(X=1)%20=%200.6"> i.e.&nbsp;60%</p></li>
+<li><p>We can select second class with probability: <img src="https://latex.codecogs.com/png.latex?P(X=2)%20=%200.3"> i.e.&nbsp;30%</p></li>
+<li><p>We can select third class with probability: <img src="https://latex.codecogs.com/png.latex?P(X=3)%20=%200.1"> i.e.&nbsp;10%</p></li>
+</ul>
+<p>In practice, Sampling process is usually performed using:</p>
+<ol type="1">
+<li><p><code>argmax</code> selecting the value with highest probability. e.g.&nbsp;inference on a multi-class classifier.</p></li>
+<li><p><code>np.random.choice</code> selecting a random item with corresponding probability. e.g.&nbsp;a RL agent exploring the discrete action space.</p></li>
+</ol>
+</section>
+<section id="problem-with-discrete-sampling" class="level2">
+<h2 class="anchored" data-anchor-id="problem-with-discrete-sampling">Problem with Discrete Sampling</h2>
+<p>Sampling methods mentioned in the previous section provide options for both exploration (during data collection) and exploitation (during inference) of the distribution space.</p>
+<p>But, what if sampling is required during training phase e.g sampling vectors from a codebook while training a VQVAE or in tasks like reinforcement learning or generative modeling, where sampling is necessary to explore different actions or outputs.</p>
+<p>Well, the training stage requires all the intermediary operations to be differentiable, for the mighty <em>Backpropagation</em>. Let’s analyze the differentiability of sampling options available to us:</p>
+<ol type="1">
+<li><code>argmax</code> being a discontinuous function everywhere, i.e.&nbsp;<img src="https://latex.codecogs.com/png.latex?%5Cquad%5Clim_%7Bh%5Cto0%7Df(x+h)%20%5Cneq%20%5Clim_%7Bh%5Cto0%7Df(x+h)%20%5Cneq%20f(x)"> is clearly not differentiable.</li>
+<li>random selection methods like <code>np.random.choice</code> are also non-differentiable.</li>
+</ol>
+<p>Now that we have a clear picture of the problem, lets build up to the Gumbel Softmax and find out how it overcomes the impediment of non-differentiability.</p>
+</section>
+<section id="gumbel-softmax" class="level2">
+<h2 class="anchored" data-anchor-id="gumbel-softmax">Gumbel Softmax</h2>
+<p>As mentioned in the previous section, we need a differentiable solution for argmax-styled determinism and stochastic nature of random selection to maintain the exploration &amp; exploitation.</p>
+<p>We’ll now discuss the proposed two-fold solution:</p>
+<section id="softmax-with-temperature" class="level3">
+<h3 class="anchored" data-anchor-id="softmax-with-temperature">Softmax with temperature</h3>
+<p>The <em>softmax with temperature</em> modifies the output probabilities of a categorical distribution by scaling the logits <img src="https://latex.codecogs.com/png.latex?z"> with a temperature parameter <img src="https://latex.codecogs.com/png.latex?%5Ctau">:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0A%5Ctext%7Bsoftmax%7D(z_i,%20%5Ctau)%20=%20%5Cfrac%7Be%5E%7Bz_i/%5Ctau%7D%7D%7B%5Csum_%7Bj=1%7D%5E%7Bn%7D%20e%5E%7Bz_j/%5Ctau%7D%7D%0A"></p>
+<ul>
+<li><p><strong><em>High Temperature (</em></strong><img src="https://latex.codecogs.com/png.latex?%5Ctau%20%5Cto%20%5Cinfty"><strong><em>)</em></strong>: Makes probabilities more uniform</p></li>
+<li><p><strong><em>Low Temperature (</em></strong><img src="https://latex.codecogs.com/png.latex?%5Ctau%20%5Cto%200"><strong><em>)</em></strong>: Sharpens the probability, approximation of one-hot vector</p></li>
+</ul>
+<div class="cell">
+<div class="code-copy-outer-scaffold"><div class="sourceCode cell-code hidden" id="cb1" data-startfrom="71" data-source-offset="-1" style="background: #f1f3f5;"><pre class="sourceCode js code-with-copy"><code class="sourceCode javascript" style="counter-reset: source-line 70;"><span id="cb1-71"><span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">function</span> <span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">softmax</span>(logits<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">,</span> temp){</span>
+<span id="cb1-72">  <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">let</span> sum<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span></span>
+<span id="cb1-73">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">for</span> (<span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">let</span> index <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">;</span> index <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">&lt;</span> logits<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span><span class="at" style="color: #657422;
+background-color: null;
+font-style: inherit;">length</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">;</span> index<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">++</span>) {</span>
+<span id="cb1-74">    sum<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">Math</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span><span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">exp</span>((logits[index] <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1e-8</span>)<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span>temp)</span>
+<span id="cb1-75">  }</span>
+<span id="cb1-76">  <span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">let</span> probs <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> logits<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span><span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">map</span>(x<span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">=&gt;</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">Math</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span><span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">exp</span>((x <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">+</span> <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">1e-8</span>)<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span>temp)<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">/</span>sum)</span>
+<span id="cb1-77">  <span class="cf" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">return</span> probs</span>
+<span id="cb1-78">}</span>
+<span id="cb1-79">prob <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> <span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">Array</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span><span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">from</span>({<span class="dt" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">length</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">5</span>}<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">,</span> ()<span class="kw" style="color: #003B4F;
+background-color: null;
+font-weight: bold;
+font-style: inherit;">=&gt;</span><span class="bu" style="color: null;
+background-color: null;
+font-style: inherit;">Math</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span><span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">random</span>()<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">*</span><span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">10</span>)</span>
+<span id="cb1-80">viewof gain <span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">=</span> Inputs<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span><span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">range</span>([<span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.1</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">,</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">50</span>]<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">,</span> {<span class="dt" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">value</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:</span> <span class="dv" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">20</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">,</span> <span class="dt" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">step</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:</span> <span class="fl" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">0.1</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">,</span> <span class="dt" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">label</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Temperature (τ)   "</span>})</span>
+<span id="cb1-81">Plot<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span><span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">barY</span>(<span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">softmax</span>(prob<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">,</span> gain)</span>
+<span id="cb1-82"> )<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">.</span><span class="fu" style="color: #4758AB;
+background-color: null;
+font-style: inherit;">plot</span>({<span class="dt" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">x</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:</span> {<span class="dt" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">label</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Categories"</span>}<span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">,</span> <span class="dt" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">y</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:</span> {<span class="dt" style="color: #AD0000;
+background-color: null;
+font-style: inherit;">label</span><span class="op" style="color: #5E5E5E;
+background-color: null;
+font-style: inherit;">:</span> <span class="st" style="color: #20794D;
+background-color: null;
+font-style: inherit;">"Probs"</span>}})</span></code></pre></div></div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-1-1" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-1-2" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-1-3" data-nodetype="declaration">
+
+</div>
+</div>
+</div>
+<div class="cell-output cell-output-display">
+<div>
+<div id="ojs-cell-1-4" data-nodetype="expression">
+
+</div>
+</div>
+</div>
+</div>
+<p>This approach provides a differentiable alternative to argmax-styled one-hot approximation (at low temperatures). However, it still fails to introduce <strong>stochasticity</strong> at low temperatures. It always outputs a deterministic distribution for a given set of logits <img src="https://latex.codecogs.com/png.latex?z"> .</p>
+</section>
+<section id="gumbel-noise" class="level3">
+<h3 class="anchored" data-anchor-id="gumbel-noise">Gumbel Noise</h3>
+<p>Stochasticity is needed to encourage exploration and mimic random sampling from given categorical distribution. We can inject this stochasticity through perturbing the logits by adding a noise <img src="https://latex.codecogs.com/png.latex?%5Cepsilon"> value before applying softmax.</p>
+<p>Gumbel noise emerges as the perfect candidate for this because of following properties:</p>
+<ul>
+<li><p>It is mathematically aligned with categorical distributions and enables differentiable approximation of discrete sampling via the Gumbel-Softmax trick.</p></li>
+<li><p>It introduces randomness in a way that respects the structure of categorical distributions while enabling gradient-based optimization.</p></li>
+</ul>
+<p>Gumble noise <img src="https://latex.codecogs.com/png.latex?%5Cepsilon"> is sampled from the standard <a href="https://en.wikipedia.org/wiki/Gumbel_distribution"><strong><em>Gumbel distribution</em></strong></a>. We can draw such noise samples by first computing <img src="https://latex.codecogs.com/png.latex?u%20%5Csim%20Uniform(0,%201)"> and then computing <img src="https://latex.codecogs.com/png.latex?%5Cepsilon%20=%20-%5Clog(-%5Clog(u))"> .</p>
+<p>Now putting it all together we have the Gumble Softmax Equation as:</p>
+<p><img src="https://latex.codecogs.com/png.latex?%0AGumbelSoftmax(z_i,%20%5Ctau)%20=%20%20%5Cfrac%7Be%5E%7B(z_i%20+%20%5Cepsilon)/%5Ctau%7D%7D%7B%5Csum_%7Bj=1%7D%5E%7Bn%7D%20e%5E%7B(z_j%20+%20%5Cepsilon)/%5Ctau%7D%7D%0A"></p>
+<ul>
+<li><p><strong>Stochasticity</strong>: <img src="https://latex.codecogs.com/png.latex?%5Cepsilon"> injects randomness, enabling exploration.</p></li>
+<li><p><strong>Differentiability</strong>: The softmax function ensures the operation is differentiable.</p></li>
+<li><p><strong>Control</strong>: <img src="https://latex.codecogs.com/png.latex?%5Ctau"> adjusts the trade-off between exploration and exploitation.</p></li>
+</ul>
+
+
+</section>
+</section>
+
+ ]]></description>
+  <category>deep-learning</category>
+  <category>probability</category>
+  <category>code</category>
+  <guid>https://iabhyuday.github.io/posts/differentiable-sampling/</guid>
+  <pubDate>Mon, 23 Dec 2024 00:00:00 GMT</pubDate>
+  <media:content url="https://iabhyuday.github.io/posts/differentiable-sampling/thumbnail.png" medium="image" type="image/png" height="96" width="144"/>
+</item>
+</channel>
+</rss>
