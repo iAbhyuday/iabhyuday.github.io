@@ -6,7 +6,7 @@ project:
 website:
   title: "iabhyuday"
   site-url: https://iabhyuday.github.io
-  description: "Hard ideas, built up from first principles, one step at a time. By Abhyuday Tripathi."
+  description: "Abhyuday Tripathi shares what he's learning, worked out from first principles, one step at a time."
   favicon: favicon.svg
   open-graph: true
   twitter-card:

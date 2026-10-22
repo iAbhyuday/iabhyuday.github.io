@@ -1,6 +1,6 @@
 ---
 title: "Blog"
-description: "Hard ideas, built up from first principles, one step at a time."
+description: "What I'm learning, worked out from first principles and shared one step at a time."
 listing:
   contents: posts
   sort: "date desc"
