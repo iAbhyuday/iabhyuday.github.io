@@ -84,8 +84,8 @@ pre > code.sourceCode > span > a:first-child::before { text-decoration: underlin
 <link href="../../site_libs/quarto-html/quarto-syntax-highlighting-dark-bd214ee8a11bbafa21949b7e7cbab4ab.css" rel="stylesheet" class="quarto-color-scheme quarto-color-alternate" id="quarto-text-highlighting-styles">
 <script src="../../site_libs/bootstrap/bootstrap.min.js"></script>
 <link href="../../site_libs/bootstrap/bootstrap-icons.css" rel="stylesheet">
-<link href="../../site_libs/bootstrap/bootstrap-35efe23a430f3fbc287cc91ab3874389.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
-<link href="../../site_libs/bootstrap/bootstrap-dark-867004202be20c9773a02d19aeda18f9.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
+<link href="../../site_libs/bootstrap/bootstrap-d1776b11deff18fc658dff9ec1e8bd1d.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme" id="quarto-bootstrap" data-mode="light">
+<link href="../../site_libs/bootstrap/bootstrap-dark-9b0fc61af3f9dc2874153f629b3f5ae8.min.css" rel="stylesheet" append-hash="true" class="quarto-color-scheme quarto-color-alternate" id="quarto-bootstrap" data-mode="dark">
 <script id="quarto-search-options" type="application/json">{
   "location": "navbar",
   "copy-button": false,
@@ -879,10 +879,26 @@ That's 16 multiply-and-add steps (FMAs). A tiny version with rows of 4: row [1, 
 <p>The presets are real workloads:</p>
 <ul>
 <li><strong>Vector add in FP32:</strong> read two 4-byte numbers, write one, do 1 FLOP. That’s 1 FLOP per 12 bytes, about 0.3 TFLOPS. A 989 TFLOPS chip running at 0.03% of its peak, and there’s nothing the kernel can do about it.</li>
-<li><strong>LLM decoding at batch size 1:</strong> generating one token multiplies every weight matrix by a single vector. Each 2-byte BF16 weight is loaded once and used in one FMA (2 FLOPs), so intensity is about 1 FLOP/B. That’s why token-by-token generation is memory-bound.</li>
-<li><strong>Decoding at batch size 64:</strong> each weight loaded from HBM is now reused for 64 tokens, so intensity rises to about 64 FLOP/B. This is the whole reason inference servers batch requests together.</li>
-<li><strong>A big square matrix multiply</strong> (<span class="math inline">\(8192^3\)</span> in BF16): intensity is about <span class="math inline">\(n/3 \approx 2{,}731\)</span> FLOP/B, well past the ridge. Compute-bound.</li>
+<li><strong>LLM decoding at batch size 1:</strong> <em>decoding</em> is how a language model writes its reply: one token at a time, each step feeding on the one before (see the note below). Generating one token multiplies every weight matrix by a single vector. Each 2-byte BF16 weight is loaded once and used in one FMA (2 FLOPs), so intensity is about 1 FLOP/B. That’s why token-by-token generation is memory-bound.</li>
+<li><strong>Decoding at batch size 64:</strong> serve 64 users at once, and their 64 token vectors stack into a matrix. Each weight loaded from HBM is now reused for 64 tokens, one per user, so intensity rises to about 64 FLOP/B. This is the whole reason inference servers batch requests together.</li>
+<li><strong>A big square matrix multiply:</strong> two <span class="math inline">\(n \times n\)</span> matrices in BF16, here with side length <span class="math inline">\(n = 8192\)</span>. It does <span class="math inline">\(2n^3\)</span> FLOPs (<span class="math inline">\(n^2\)</span> outputs, each a sum of <span class="math inline">\(n\)</span> FMAs) but moves only <span class="math inline">\(6n^2\)</span> bytes (three matrices of <span class="math inline">\(n^2\)</span> two-byte numbers). Intensity is <span class="math inline">\(2n^3 / 6n^2 = n/3 \approx 2{,}731\)</span> FLOP/B, well past the ridge. Compute-bound. FLOPs grow as <span class="math inline">\(n^3\)</span> but bytes only as <span class="math inline">\(n^2\)</span>, so the bigger the matrix, the more each byte is reused.</li>
 </ul>
+<div class="callout callout-style-default callout-note callout-titled">
+<div class="callout-header d-flex align-content-center">
+<div class="callout-icon-container">
+<i class="callout-icon"></i>
+</div>
+<div class="callout-title-container flex-fill">
+<span class="screen-reader-only">Note</span>How LLM decoding works, and why it’s memory-bound
+</div>
+</div>
+<div class="callout-body-container callout-body">
+<p>A language model writes <strong>one token at a time</strong> (a <em>token</em> is a word or a piece of a word): to produce token 101 it runs the whole model on token 100, picks the next token, and repeats. Steps can’t run in parallel, because each needs the one before.</p>
+<p>Inside the model, the current token is a vector, for example 4,096 numbers. At every layer it’s multiplied by big weight matrices, <span class="math inline">\(y = W x\)</span>: a matrix times a <em>vector</em>. Each weight comes from HBM (2 bytes), is used in exactly one FMA (2 FLOPs), and isn’t needed again for this token.</p>
+<p>For a 7-billion-parameter model, that means streaming 14 GB of weights for every token. At 3.35 TB/s, that takes about 4.2 ms, which caps generation near 240 tokens per second. The math itself (14 GFLOP) would take the Tensor Cores about 0.014 ms. Faster math wouldn’t help; only fewer bytes per FLOP would.</p>
+<p>Batching is that fix: with 64 users, each weight is loaded once and used 64 times. (Each user also has a <strong>KV cache</strong> to read every step, which batching doesn’t share, so real decoding is a little more memory-bound than this sketch.)</p>
+</div>
+</div>
 <div class="callout callout-style-default callout-tip callout-titled">
 <div class="callout-header d-flex align-content-center">
 <div class="callout-icon-container">

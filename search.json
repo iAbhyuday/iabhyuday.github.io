@@ -1,17 +1,10 @@
 [
   {
-    "objectID": "index.html",
-    "href": "index.html",
-    "title": "Blog",
+    "objectID": "about.html",
+    "href": "about.html",
+    "title": "About",
     "section": "",
-    "text": "How a GPU Works: A Visual Tour of the H100\n\n\n\ngpu\n\ndeep-learning\n\nhardware\n\n\n\nSMs, warps, lanes, CUDA cores, Tensor Cores, HBM, SRAM, bandwidth and FLOPs, explained with animations and built up one idea at a time.\n\n\n\n\n\nOct 21, 2026\n\n\nAbhyuday\n\n\n\n\n\n\n\n\n\n\n\n\nGumbel Softmax: Differentiable Sampling from Discrete Distributions\n\n\n\ncode\n\n\n\n\n\n\n\n\n\nDec 23, 2024\n\n\nAbhyuday\n\n\n\n\n\n\n\n\n\n\n\n\nPost With Code\n\n\n\nnews\n\ncode\n\nanalysis\n\n\n\n\n\n\n\n\n\nOct 26, 2024\n\n\nHarlow Malloc\n\n\n\n\n\n\n\n\n\n\n\n\nWelcome To My Blog\n\n\n\nnews\n\n\n\n\n\n\n\n\n\nOct 23, 2024\n\n\nTristan O’Malley\n\n\n\n\n\nNo matching items"
-  },
-  {
-    "objectID": "posts/welcome/index.html",
-    "href": "posts/welcome/index.html",
-    "title": "Welcome To My Blog",
-    "section": "",
-    "text": "This is the first post in a Quarto blog. Welcome!\n\nSince this post doesn’t specify an explicit image, the first image in the post will be used in the listing page of posts."
+    "text": "About this blog"
   },
   {
     "objectID": "posts/differentiable-sampling/index.html",
@@ -40,6 +33,20 @@
     "title": "Gumbel Softmax: Differentiable Sampling from Discrete Distributions",
     "section": "Gumbel Softmax",
     "text": "Gumbel Softmax\nAs mentioned in the previous section, we need a differentiable solution for argmax-styled determinism and stochastic nature of random selection to maintain the exploration & exploitation.\nWe’ll now discuss the proposed two-fold solution:\n\nSoftmax with temperature\nThe softmax with temperature modifies the output probabilities of a categorical distribution by scaling the logits \\(z\\) with a temperature parameter \\(\\tau\\):\n\\[\n\\text{softmax}(z_i, \\tau) = \\frac{e^{z_i/\\tau}}{\\sum_{j=1}^{n} e^{z_j/\\tau}}\n\\]\n\nHigh Temperature (\\(\\tau \\to \\infty\\)): Makes probabilities more uniform\nLow Temperature (\\(\\tau \\to 0\\)): Sharpens the probability, approximation of one-hot vector\n\n\nfunction softmax(logits, temp){\n  let sum=0\n  for (let index = 0; index &lt; logits.length; index++) {\n    sum+= Math.exp((logits[index] + 1e-8)/temp)\n  }\n  let probs = logits.map(x=&gt; Math.exp((x + 1e-8)/temp)/sum)\n  return probs\n}\nprob = Array.from({length: 5}, ()=&gt;Math.random()*10)\nviewof gain = Inputs.range([0.1, 50], {value: 20, step: 0.1, label: \"Temperature (τ)   \"})\nPlot.barY(softmax(prob, gain)\n ).plot({x: {label: \"Categories\"}, y: {label: \"Probs\"}})\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\n\nThis approach provides a differentiable alternative to argmax-styled one-hot approximation (at low temperatures). However, it still fails to introduce stochasticity at low temperatures. It always outputs a deterministic distribution for a given set of logits \\(z\\) .\n\n\nGumbel Noise\nStochasticity is needed to encourage exploration and mimic random sampling from given categorical distribution. We can inject this stochasticity through perturbing the logits by adding a noise \\(\\epsilon\\) value before applying softmax.\nGumbel noise emerges as the perfect candidate for this because of following properties:\n\nIt is mathematically aligned with categorical distributions and enables differentiable approximation of discrete sampling via the Gumbel-Softmax trick.\nIt introduces randomness in a way that respects the structure of categorical distributions while enabling gradient-based optimization.\n\nGumble noise \\(\\epsilon\\) is sampled from the standard Gumbel distribution. We can draw such noise samples by first computing \\(u \\sim Uniform(0, 1)\\) and then computing \\(\\epsilon = -\\log(-\\log(u))\\) .\nNow putting it all together we have the Gumble Softmax Equation as:\n\\[\nGumbelSoftmax(z_i, \\tau) =  \\frac{e^{(z_i + \\epsilon)/\\tau}}{\\sum_{j=1}^{n} e^{(z_j + \\epsilon)/\\tau}}\n\\]\n\nStochasticity: \\(\\epsilon\\) injects randomness, enabling exploration.\nDifferentiability: The softmax function ensures the operation is differentiable.\nControl: \\(\\tau\\) adjusts the trade-off between exploration and exploitation."
+  },
+  {
+    "objectID": "posts/welcome/index.html",
+    "href": "posts/welcome/index.html",
+    "title": "Welcome To My Blog",
+    "section": "",
+    "text": "This is the first post in a Quarto blog. Welcome!\n\nSince this post doesn’t specify an explicit image, the first image in the post will be used in the listing page of posts."
+  },
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "Blog",
+    "section": "",
+    "text": "How a GPU Works: A Visual Tour of the H100\n\n\n\ngpu\n\ndeep-learning\n\nhardware\n\n\n\nSMs, warps, lanes, CUDA cores, Tensor Cores, HBM, SRAM, bandwidth and FLOPs, explained with animations and built up one idea at a time.\n\n\n\n\n\nOct 21, 2026\n\n\nAbhyuday\n\n\n\n\n\n\n\n\n\n\n\n\nGumbel Softmax: Differentiable Sampling from Discrete Distributions\n\n\n\ncode\n\n\n\n\n\n\n\n\n\nDec 23, 2024\n\n\nAbhyuday\n\n\n\n\n\n\n\n\n\n\n\n\nPost With Code\n\n\n\nnews\n\ncode\n\nanalysis\n\n\n\n\n\n\n\n\n\nOct 26, 2024\n\n\nHarlow Malloc\n\n\n\n\n\n\n\n\n\n\n\n\nWelcome To My Blog\n\n\n\nnews\n\n\n\n\n\n\n\n\n\nOct 23, 2024\n\n\nTristan O’Malley\n\n\n\n\n\nNo matching items"
   },
   {
     "objectID": "posts/how-a-gpu-works/index.html",
@@ -109,7 +116,7 @@
     "href": "posts/how-a-gpu-works/index.html#memory-bandwidth-vs-flops-the-roofline",
     "title": "How a GPU Works: A Visual Tour of the H100",
     "section": "Memory bandwidth vs FLOPs: the roofline",
-    "text": "Memory bandwidth vs FLOPs: the roofline\nHere’s the most important pair of numbers on the spec sheet:\n\nCompute: 989 trillion BF16 FLOPs per second.\nMemory bandwidth: 3.35 trillion bytes per second from HBM.\n\nDivide one by the other: the H100 can do about 295 FLOPs in the time it takes to fetch one byte. So whether a program is fast depends on how much work it does per byte it loads. That ratio is called arithmetic intensity:\n\\[\n\\text{intensity} = \\frac{\\text{FLOPs performed}}{\\text{bytes moved from memory}}\n\\]\nThe speed you can actually reach is the lower of two limits:\n\\[\n\\text{achievable FLOPS} = \\min\\big(\\underbrace{989\\ \\text{TFLOPS}}_{\\text{compute roof}},\\ \\underbrace{3.35\\ \\text{TB/s} \\times \\text{intensity}}_{\\text{memory roof}}\\big)\n\\]\nPlotted on log-log axes, this gives the roofline: a sloped line (memory limit) that meets a flat line (compute limit) at the ridge point, about 295 FLOPs per byte.\n\nFigure 8 · The roofline. Drag the slider or pick a preset. Left of the ridge, the program is memory-bound: the HBM pipe is full and the Tensor Cores wait. Right of the ridge, it's compute-bound: the Tensor Cores are the limit.\n\nThe presets are real workloads:\n\nVector add in FP32: read two 4-byte numbers, write one, do 1 FLOP. That’s 1 FLOP per 12 bytes, about 0.3 TFLOPS. A 989 TFLOPS chip running at 0.03% of its peak, and there’s nothing the kernel can do about it.\nLLM decoding at batch size 1: generating one token multiplies every weight matrix by a single vector. Each 2-byte BF16 weight is loaded once and used in one FMA (2 FLOPs), so intensity is about 1 FLOP/B. That’s why token-by-token generation is memory-bound.\nDecoding at batch size 64: each weight loaded from HBM is now reused for 64 tokens, so intensity rises to about 64 FLOP/B. This is the whole reason inference servers batch requests together.\nA big square matrix multiply (\\(8192^3\\) in BF16): intensity is about \\(n/3 \\approx 2{,}731\\) FLOP/B, well past the ridge. Compute-bound.\n\n\n\n\n\n\n\nTipThink of it as\n\n\n\nOur kitchen lines are incredibly fast, but every ingredient from the warehouse comes through one narrow door. If each dish needs a lot of ingredients, the cooks spend their time waiting at the door. Hiring faster cooks won’t help; you need dishes that do more cooking per crate."
+    "text": "Memory bandwidth vs FLOPs: the roofline\nHere’s the most important pair of numbers on the spec sheet:\n\nCompute: 989 trillion BF16 FLOPs per second.\nMemory bandwidth: 3.35 trillion bytes per second from HBM.\n\nDivide one by the other: the H100 can do about 295 FLOPs in the time it takes to fetch one byte. So whether a program is fast depends on how much work it does per byte it loads. That ratio is called arithmetic intensity:\n\\[\n\\text{intensity} = \\frac{\\text{FLOPs performed}}{\\text{bytes moved from memory}}\n\\]\nThe speed you can actually reach is the lower of two limits:\n\\[\n\\text{achievable FLOPS} = \\min\\big(\\underbrace{989\\ \\text{TFLOPS}}_{\\text{compute roof}},\\ \\underbrace{3.35\\ \\text{TB/s} \\times \\text{intensity}}_{\\text{memory roof}}\\big)\n\\]\nPlotted on log-log axes, this gives the roofline: a sloped line (memory limit) that meets a flat line (compute limit) at the ridge point, about 295 FLOPs per byte.\n\nFigure 8 · The roofline. Drag the slider or pick a preset. Left of the ridge, the program is memory-bound: the HBM pipe is full and the Tensor Cores wait. Right of the ridge, it's compute-bound: the Tensor Cores are the limit.\n\nThe presets are real workloads:\n\nVector add in FP32: read two 4-byte numbers, write one, do 1 FLOP. That’s 1 FLOP per 12 bytes, about 0.3 TFLOPS. A 989 TFLOPS chip running at 0.03% of its peak, and there’s nothing the kernel can do about it.\nLLM decoding at batch size 1: decoding is how a language model writes its reply: one token at a time, each step feeding on the one before (see the note below). Generating one token multiplies every weight matrix by a single vector. Each 2-byte BF16 weight is loaded once and used in one FMA (2 FLOPs), so intensity is about 1 FLOP/B. That’s why token-by-token generation is memory-bound.\nDecoding at batch size 64: serve 64 users at once, and their 64 token vectors stack into a matrix. Each weight loaded from HBM is now reused for 64 tokens, one per user, so intensity rises to about 64 FLOP/B. This is the whole reason inference servers batch requests together.\nA big square matrix multiply: two \\(n \\times n\\) matrices in BF16, here with side length \\(n = 8192\\). It does \\(2n^3\\) FLOPs (\\(n^2\\) outputs, each a sum of \\(n\\) FMAs) but moves only \\(6n^2\\) bytes (three matrices of \\(n^2\\) two-byte numbers). Intensity is \\(2n^3 / 6n^2 = n/3 \\approx 2{,}731\\) FLOP/B, well past the ridge. Compute-bound. FLOPs grow as \\(n^3\\) but bytes only as \\(n^2\\), so the bigger the matrix, the more each byte is reused.\n\n\n\n\n\n\n\nNoteHow LLM decoding works, and why it’s memory-bound\n\n\n\nA language model writes one token at a time (a token is a word or a piece of a word): to produce token 101 it runs the whole model on token 100, picks the next token, and repeats. Steps can’t run in parallel, because each needs the one before.\nInside the model, the current token is a vector, for example 4,096 numbers. At every layer it’s multiplied by big weight matrices, \\(y = W x\\): a matrix times a vector. Each weight comes from HBM (2 bytes), is used in exactly one FMA (2 FLOPs), and isn’t needed again for this token.\nFor a 7-billion-parameter model, that means streaming 14 GB of weights for every token. At 3.35 TB/s, that takes about 4.2 ms, which caps generation near 240 tokens per second. The math itself (14 GFLOP) would take the Tensor Cores about 0.014 ms. Faster math wouldn’t help; only fewer bytes per FLOP would.\nBatching is that fix: with 64 users, each weight is loaded once and used 64 times. (Each user also has a KV cache to read every step, which batching doesn’t share, so real decoding is a little more memory-bound than this sketch.)\n\n\n\n\n\n\n\n\nTipThink of it as\n\n\n\nOur kitchen lines are incredibly fast, but every ingredient from the warehouse comes through one narrow door. If each dish needs a lot of ingredients, the cooks spend their time waiting at the door. Hiring faster cooks won’t help; you need dishes that do more cooking per crate."
   },
   {
     "objectID": "posts/how-a-gpu-works/index.html#putting-it-all-together-one-gemm",
@@ -145,12 +152,5 @@
     "title": "Post With Code",
     "section": "",
     "text": "This is a post with executable code."
-  },
-  {
-    "objectID": "about.html",
-    "href": "about.html",
-    "title": "About",
-    "section": "",
-    "text": "About this blog"
   }
 ]
