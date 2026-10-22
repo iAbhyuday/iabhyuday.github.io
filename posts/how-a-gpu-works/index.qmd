@@ -299,7 +299,7 @@ One FMA counts as **2 FLOPs** (a multiply and an add). An $M \times N \times K$ 
 
 Why would the hardware bother keeping 16 warps on a sub-partition when only one can run per cycle? Because of memory. A load from HBM takes **hundreds of cycles** to come back. If the scheduler had only one warp, it would sit idle for all of them.
 
-Try it below. Each warp in this model does two math instructions, then a load that stalls for 12 cycles (real HBM latency is closer to 500+, but 12 keeps it watchable).
+Try it below. Each warp in this model runs a tiny loop of three instructions: two **FFMA**s (the instruction name for one FP32 fused multiply-add, `d = a × b + c`), then a **LOAD** from HBM that stalls the warp for 12 cycles (real HBM latency is closer to 500+, but 12 keeps it watchable). The scheduler can issue one instruction per cycle.
 
 ```{=html}
 <figure class="gpu-fig column-body-outset" data-fig="warps" aria-label="Interactive simulation of a warp scheduler hiding memory latency">
@@ -307,7 +307,7 @@ Try it below. Each warp in this model does two math instructions, then a load th
 </figure>
 ```
 
-The arithmetic is simple. One warp keeps the scheduler busy for 3 cycles out of every 15 (3 instructions + 12 waiting). To fill every cycle you need about $15 \div 3 = 5$ warps. With real HBM latencies, you need many more, which is why the H100 can keep up to 64 warps per SM.
+The arithmetic is simple. One warp keeps the scheduler busy for 3 cycles out of every 15: 3 cycles issuing its instructions (FFMA, FFMA, LOAD), then 12 cycles waiting for the load to come back. To fill every cycle you need about $15 \div 3 = 5$ warps. With real HBM latencies, you need many more, which is why the H100 can keep up to 64 warps per SM.
 
 How many warps actually fit depends on how many registers and how much shared memory each thread uses. The fraction of the maximum you achieve is called **occupancy**.
 
