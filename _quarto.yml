@@ -17,9 +17,6 @@ website:
         href: index.qmd
       - text: About
         href: about.qmd
-      - icon: github
-        href: https://github.com/iAbhyuday
-        aria-label: GitHub
       - icon: linkedin
         href: https://www.linkedin.com/in/iabhyuday
         aria-label: LinkedIn
