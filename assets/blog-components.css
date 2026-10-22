@@ -156,3 +156,8 @@ main.content .post-facts a.gsc-tile:hover, main.content .post-facts a.gsc-tile:f
 .blog-fig .fig-info p:last-child{margin-bottom:0}
 .blog-fig .fig-info h4{text-transform:none;letter-spacing:normal}
 @media (max-width:600px){.blog-fig .fig-info{padding:12px 14px;font-size:.88rem}.blog-fig .fig-info ol{padding-left:1.1em}.blog-fig .fig-info table{font-size:.8rem}.blog-fig .fig-info th,.blog-fig .fig-info td{padding:5px 6px}}
+.blog-fig .fig-info{font-family:var(--d-serif, Georgia, serif);font-size:1rem;line-height:1.7}
+.blog-fig .fig-info h4{font-family:var(--d-serif, Georgia, serif);font-weight:600;font-size:18px;line-height:1.4em;color:var(--d-h-sub, var(--g-ink));text-shadow:var(--d-hshadow, none);margin:0 0 10px}
+.blog-fig .fig-info pre, .blog-fig .fig-info code{font-family:"Source Code Pro", SFMono-Regular, Menlo, Consolas, monospace}
+.blog-fig .fig-info table{font-family:var(--d-sans, sans-serif);font-size:15px}
+@media (max-width:600px){.blog-fig .fig-info{font-size:.95rem}.blog-fig .fig-info h4{font-size:17px}.blog-fig .fig-info table{font-size:13px}}
