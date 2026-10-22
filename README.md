@@ -8,6 +8,16 @@ Source for [iabhyuday.github.io](https://iabhyuday.github.io), a blog of visual,
 quarto preview
 ```
 
+## Start a new topic
+
+Size a topic before learning it, with a topic map (not published):
+
+```bash
+./new-topic.sh kv-cache "The KV cache"
+```
+
+See [`_notes/README.md`](_notes/README.md) for the workflow from topic map to published post.
+
 ## Write a new post
 
 ```bash
