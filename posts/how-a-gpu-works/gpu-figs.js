@@ -389,28 +389,52 @@ function drawWarps(t){
 function drawCores(t){
   const lt=t%10.5, clk=Math.floor(lt*16);
   [
-    {x:40, title:'32 CUDA cores', sub:'one sub-partition = 32 lanes · FMA', op:'d = a × b + c   (one number each)', rate:2, total:128, col:C.cuda, fma:32},
+    {x:40, title:'32 CUDA cores', sub:'one sub-partition = 32 lanes · FMA', op:'d = a × b + c   (one number each)', rate:2, total:128, col:C.cuda, fma:32, lanes:true},
     {x:470, title:'1 Tensor Core', sub:'the same sub-partition · MMA', op:'D = A × B + C   (a whole tile)', rate:32, total:8, col:C.tensor, fma:512},
   ].forEach(p=>{
     txt(p.title,p.x,48,{size:18,weight:700,color:p.col});
     txt(p.sub,p.x,68,{size:12,color:C.muted});
     txt(p.op,p.x,92,{size:12.5,font:'mono'});
-    const gx=p.x+45, gy=110, cs=17.6, done=Math.min(256, clk*p.rate);
-    for(let i=0;i<256;i++){
-      const r=Math.floor(i/16), c=i%16;
-      let col=A(p.col,.08);
-      if(i<done) col = i>=done-p.rate && clk<=p.total ? p.col : A(p.col,.42);
-      box(gx+c*cs,gy+r*cs,cs-1.5,cs-1.5,{fill:col,r:1.5});
+    const gx=p.x+45, gy=110, cs=17.6, s=cs-1.5;
+    if(p.lanes){
+      // CUDA cores: each of the 32 lanes owns one output square and adds one product per clock.
+      // 32 squares fill together over 16 clocks (K = 16), then the next 32 start: 8 rounds.
+      const c2=Math.min(clk,p.total), round=Math.min(7,Math.floor(c2/16)), step=c2>=p.total?16:c2%16;
+      const lo=round*32, hi=lo+32, fin=c2>=p.total;
+      for(let i=0;i<256;i++){
+        const r=Math.floor(i/16), c=i%16, x=gx+c*cs, y=gy+r*cs;
+        if(i<lo || (fin && i<hi)) box(x,y,s,s,{fill:A(p.col,.42),r:1.5});
+        else if(i<hi){
+          box(x,y,s,s,{fill:A(p.col,.12),r:1.5});
+          const h=s*step/16; if(h>0) box(x,y+s-h,s,h,{fill:p.col,r:1.5});
+        } else box(x,y,s,s,{fill:A(p.col,.08),r:1.5});
+      }
+      if(!fin){
+        const ry=gy+round*2*cs;
+        box(gx-3,ry-2,16*cs+4.5,2*cs+2.5,{stroke:p.col,lw:1.5,r:3});
+        txt('← lanes 0–15',gx+16*cs+8,ry+cs*.5+4,{size:11,color:p.col,weight:600});
+        txt('← lanes 16–31',gx+16*cs+8,ry+cs*1.5+4,{size:11,color:p.col,weight:600});
+      }
+      txt('round '+(round+1)+' of 8 · each lane on product '+step+' of 16',gx,gy+16*cs+38,{size:11.5,font:'mono',color:p.col});
+    } else {
+      const done=Math.min(256, clk*p.rate);
+      for(let i=0;i<256;i++){
+        const r=Math.floor(i/16), c=i%16;
+        let col=A(p.col,.08);
+        if(i<done) col = i>=done-p.rate && clk<=p.total ? p.col : A(p.col,.42);
+        box(gx+c*cs,gy+r*cs,s,s,{fill:col,r:1.5});
+      }
+      txt('512 FMAs per clock = 32 squares’ worth',gx,gy+16*cs+38,{size:11.5,font:'mono',color:p.col});
     }
     box(gx-1,gy-1,16*cs+.5,16*cs+.5,{stroke:C.line,r:2});
-    txt('16 × 16 output tile, K = 16',gx,gy+16*cs+18,{size:11.5,color:C.muted});
-    txt('clock',gx,445,{size:12,color:C.muted});
-    txt(String(Math.min(clk,p.total)).padStart(3,' '),gx+42,445,{size:22,font:'mono',weight:500});
-    txt('/ '+p.total,gx+96,445,{size:13,font:'mono',color:C.muted});
-    txt('FMAs '+fmt(Math.min(4096,clk*p.fma))+' / 4,096',gx+160,445,{size:12,font:'mono',color:C.muted});
-    if(clk>=p.total) txt('✓ done in '+p.total+' clocks',gx,469,{size:13,weight:600,color:p.col});
+    txt('16 × 16 output tile · 1 square = 1 output = 16 FMAs',gx,gy+16*cs+18,{size:11.5,color:C.muted});
+    txt('clock',gx,466,{size:12,color:C.muted});
+    txt(String(Math.min(clk,p.total)).padStart(3,' '),gx+42,466,{size:22,font:'mono',weight:500});
+    txt('/ '+p.total,gx+96,466,{size:13,font:'mono',color:C.muted});
+    txt('FMAs '+fmt(Math.min(4096,clk*p.fma))+' / 4,096',gx+160,466,{size:12,font:'mono',color:C.muted});
+    if(clk>=p.total) txt('✓ done in '+p.total+' clocks',gx,490,{size:13,weight:600,color:p.col});
   });
-  const by=505; txt('Multiply-adds per clock, per SM',40,by,{size:13,weight:600});
+  const by=515; txt('Multiply-adds per clock, per SM',40,by,{size:13,weight:600});
   const wmax=690;
   box(160,by+12,wmax*128/2048,18,{fill:C.cuda,r:2}); txt('CUDA (FP32)',40,by+26,{size:12,color:C.muted}); txt('128',165+wmax*128/2048,by+26,{size:12,font:'mono'});
   box(160,by+40,wmax,18,{fill:C.tensor,r:2}); txt('Tensor (FP16)',40,by+54,{size:12,color:C.muted}); txt('2,048  (16×)',wmax+150,by+54,{size:12,font:'mono',align:'right',color:C.surface,weight:600});

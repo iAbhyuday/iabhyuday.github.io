@@ -245,7 +245,7 @@ Here's the difference in action: both sides compute the same 16×16 output tile 
 
 ```{=html}
 <figure class="gpu-fig column-body-outset" data-fig="cores" aria-label="Race between 32 CUDA cores and one Tensor Core computing the same tile">
-<figcaption><b>Figure 5 · The race.</b> 32 CUDA cores do 32 FMAs per clock and need 128 clocks. One Tensor Core in the same sub-partition does 512 FP16 FMAs per clock and needs 8. Per SM, that's 128 vs 2,048 multiply-adds per clock: 16× more.</figcaption>
+<figcaption><b>Figure 5 · The race.</b> Each square is one output number, and each takes 16 FMAs (K = 16). On the left, each of the 32 lanes owns one square and adds one product per clock, so a band of 32 squares fills together over 16 clocks; 8 rounds make 128 clocks. One Tensor Core in the same sub-partition does 512 FP16 FMAs per clock and needs 8. Per SM, that's 128 vs 2,048 multiply-adds per clock: 16× more.</figcaption>
 </figure>
 ```
 
